@@ -25,6 +25,8 @@ O manifest faz o app abrir em tela cheia (standalone), sem barra do Safari.
 
 - `GET /api/portfolio` — carteira atual (grava snapshot do dia; usa cache SQLite como fallback se a Pluggy estiver fora)
 - `GET /api/history` — série de snapshots para o gráfico de evolução
+- `GET /api/benchmarks?from=YYYY-MM-DD` — séries CDI/IPCA/Selic (SGS Bacen) e IBOV (Yahoo), cacheadas no SQLite e atualizadas 1x/dia
+- `GET /api/health` — healthcheck (usado pelo Coolify/Docker; não chama a Pluggy)
 - `POST /api/refresh` — dispara PATCH /items/{id} na Pluggy para sincronizar com o banco (dados novos chegam em minutos)
 
 Snapshot automático diário às 08:30 (America/Sao_Paulo).

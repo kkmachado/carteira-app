@@ -57,6 +57,15 @@
   footer { font-size:11.5px; color:#8A8E82; line-height:1.5; margin-top:8px; }
   #status { font-size:12px; color:var(--mut); }
   .stale { color:var(--red); }
+  #banner { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px; border:1px solid; }
+  #banner.warn { display:block; background:#B4530914; border-color:#B4530940; color:var(--ipca); }
+  #banner.err { display:block; background:#B91C1C10; border-color:#B91C1C40; color:var(--red); }
+  .bench { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .bench .b-item { text-align:center; padding:6px 4px; }
+  .bench .b-l { font-size:11.5px; color:var(--mut); margin-bottom:2px; }
+  .bench .b-v { font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:500; }
+  .bench-note { font-size:11px; color:var(--mut); text-align:center; margin-top:8px; }
+  .skeleton { color:var(--mut); opacity:.5; }
 </style>
 </head>
 <body>
@@ -68,11 +77,23 @@
     <div class="total"><span id="totalBal">—</span><small id="assetCount"></small></div>
   </header>
 
+  <div id="banner"></div>
+
   <div class="kpis">
     <div class="kpi"><div class="l">Aplicado</div><div class="v" id="kOriginal">—</div></div>
     <div class="kpi"><div class="l">Rendimento bruto</div><div class="v" id="kProfit" style="color:var(--pre)">—</div><div class="s" id="kProfitPct"></div></div>
     <div class="kpi"><div class="l">IR provisionado</div><div class="v" id="kTaxes" style="color:var(--ipca)">—</div></div>
     <div class="kpi"><div class="l">Isento de IR</div><div class="v" id="kIsento">—</div><div class="s">LCA / LCI</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Carteira vs benchmarks</h2>
+    <div class="bench">
+      <div class="b-item"><div class="b-l">Carteira</div><div class="b-v" id="bCart">—</div></div>
+      <div class="b-item"><div class="b-l">CDI</div><div class="b-v" id="bCdi" style="color:var(--cdi)">—</div></div>
+      <div class="b-item"><div class="b-l">IPCA</div><div class="b-v" id="bIpca" style="color:var(--ipca)">—</div></div>
+    </div>
+    <div class="bench-note" id="bNote"></div>
   </div>
 
   <div class="card"><h2>Evolução da carteira</h2><canvas id="chHistory"></canvas></div>
@@ -112,14 +133,76 @@ Chart.defaults.font.size = 11;
 Chart.defaults.color = '#6B7066';
 let charts = {};
 
+const banner = (cls, msg) => {
+  const el = document.getElementById('banner');
+  el.className = cls || '';
+  el.textContent = msg || '';
+};
+
+/* Simula total_original rendendo 100% do CDI desde o primeiro snapshot.
+   Aportes/resgates (Δtotal_original) entram na simulação na data em que ocorrem. */
+function cdiLine(history, cdiRows) {
+  if (!history.length || !cdiRows.length) return null;
+  const rate = Object.fromEntries(cdiRows.map(r => [r.date, r.value]));
+  let sim = history[0].total_original;
+  const out = [sim];
+  for (let i = 1; i < history.length; i++) {
+    let d = new Date(history[i-1].date + 'T12:00Z');
+    const end = new Date(history[i].date + 'T12:00Z');
+    while (d < end) {
+      d = new Date(d.getTime() + 86400000);
+      const r = rate[d.toISOString().slice(0,10)];
+      if (r) sim *= 1 + r/100;             // só dias úteis têm taxa no SGS
+    }
+    sim += history[i].total_original - history[i-1].total_original;
+    out.push(sim);
+  }
+  return out;
+}
+
+/* Card comparativo: rentabilidade no período dos snapshots vs CDI e IPCA acumulados */
+function renderBenchCard(history, bench) {
+  if (!history.length) return;
+  const first = history[0], last = history[history.length-1];
+  const fmtDate = new Date(first.date + 'T12:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
+  document.getElementById('bNote').textContent = 'histórico desde ' + fmtDate + ' · rendimento sobre o aplicado';
+
+  const aportes = last.total_original - first.total_original;
+  const rendimento = (last.total_gross - first.total_gross) - aportes;
+  const base = first.total_gross + Math.max(aportes, 0);
+  document.getElementById('bCart').textContent = base > 0
+    ? (rendimento >= 0 ? '+' : '') + (rendimento/base*100).toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' : '—';
+
+  const acum = rows => rows.length ? (rows.reduce((f,r) => f*(1+r.value/100), 1) - 1) * 100 : null;
+  const cdiRows  = (bench.cdi  || []).filter(r => r.date > first.date && r.date <= last.date);
+  const ipcaRows = (bench.ipca || []).filter(r => r.date <= last.date);
+  const cdiAc = acum(cdiRows), ipcaAc = acum(ipcaRows);
+  document.getElementById('bCdi').textContent  = cdiAc  !== null ? '+' + cdiAc.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' : '—';
+  document.getElementById('bIpca').textContent = ipcaAc !== null ? '+' + ipcaAc.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' : '—';
+}
+
 async function load() {
+  document.getElementById('status').textContent = 'Carregando carteira…';
   const [pRes, hRes] = await Promise.all([fetch('/api/portfolio'), fetch('/api/history')]);
   const p = await pRes.json();
   const history = await hRes.json();
   if (p.error && !p.investments) {
-    document.getElementById('status').textContent = 'Erro ao consultar a Pluggy: ' + p.error;
+    banner('err', 'Erro ao consultar a Pluggy: ' + p.error);
+    document.getElementById('status').textContent = '';
     return;
   }
+  if (p.stale) banner('warn', 'Pluggy indisponível — exibindo cache de ' + new Date(p.syncedAt).toLocaleDateString('pt-BR') + '. (' + p.error + ')');
+  else banner('', '');
+  document.getElementById('status').textContent = '';
+
+  // benchmarks em paralelo ao render: falha aqui não derruba a carteira
+  let bench = { cdi: [], ipca: [] };
+  try {
+    const from = history.length ? history[0].date.slice(0,8) + '01' : '';
+    bench = await fetch('/api/benchmarks?from=' + from).then(r => r.json());
+  } catch (e) { console.warn('Benchmarks indisponíveis:', e); }
+  renderBenchCard(history, bench);
+
   const inv = p.investments;
   const active = inv.filter(a => a.status === 'ACTIVE');
 
@@ -140,11 +223,13 @@ async function load() {
   document.getElementById('kIsento').textContent = PCT(isentoBal/bal*100);
 
   /* Histórico */
+  const cdiSim = cdiLine(history, bench.cdi || []);
   draw('chHistory','line',{
     labels: history.map(r=>new Date(r.date+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
     datasets:[
       { label:'Saldo líquido', data:history.map(r=>r.total_balance), borderColor:'#14261F', backgroundColor:'#14261F18', fill:true, tension:.3, pointRadius:2 },
-      { label:'Aplicado', data:history.map(r=>r.total_original), borderColor:'#8A8E82', borderDash:[4,4], pointRadius:0, tension:.3 }
+      { label:'Aplicado', data:history.map(r=>r.total_original), borderColor:'#8A8E82', borderDash:[4,4], pointRadius:0, tension:.3 },
+      ...(cdiSim ? [{ label:'100% do CDI', data:cdiSim, borderColor:'#2563EB', borderDash:[2,3], pointRadius:0, tension:.3 }] : [])
     ]
   },{ plugins:{legend:{display:true,position:'bottom'}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
 
@@ -208,7 +293,10 @@ document.getElementById('refreshBtn').addEventListener('click', async () => {
   setTimeout(()=>{ st.textContent=''; }, 8000);
 });
 
-load();
+load().catch(err => {
+  banner('err', 'Falha ao carregar o app: ' + (err.message || err));
+  document.getElementById('status').textContent = '';
+});
 </script>
 </body>
 </html>

@@ -4,6 +4,7 @@ import cron from "node-cron";
 import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
+import { initBenchmarks, updateBenchmarks, getBenchmarks, isStale } from "./lib/benchmarks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_ITEM_ID, PORT = 3000 } = process.env;
@@ -23,6 +24,11 @@ db.exec(`
     payload TEXT NOT NULL            -- JSON completo do dia
   );
 `);
+initBenchmarks(db);
+
+function firstSnapshotDate() {
+  return db.prepare("SELECT MIN(date) AS d FROM snapshots").get()?.d || null;
+}
 
 /* ---------- Auth Pluggy (apiKey expira em 2h) ---------- */
 let cachedKey = null;
@@ -92,7 +98,7 @@ app.get("/api/portfolio", async (_req, res) => {
     const last = db.prepare("SELECT * FROM snapshots ORDER BY date DESC LIMIT 1").get();
     if (last) {
       return res.json({
-        syncedAt: `${last.date}T00:00:00Z`,
+        syncedAt: `${last.date}T12:00:00Z`, // meio-dia UTC: exibe o dia certo no fuso de SP
         stale: true,
         error: String(err.message || err),
         investments: JSON.parse(last.payload),
@@ -108,6 +114,25 @@ app.get("/api/history", (_req, res) => {
     .prepare("SELECT date, total_balance, total_original, total_gross FROM snapshots ORDER BY date ASC")
     .all();
   res.json(rows);
+});
+
+// Séries de benchmarks (CDI/IPCA/Selic via SGS, IBOV via Yahoo) do cache SQLite.
+// Se o cache não foi atualizado hoje, busca incremental antes de responder;
+// falha em uma fonte não impede a resposta (vai o que houver em cache + erros).
+app.get("/api/benchmarks", async (req, res) => {
+  const from = req.query.from || firstSnapshotDate() || undefined;
+  let errors = {};
+  if (isStale(db)) {
+    ({ errors } = await updateBenchmarks(db, { startISO: from }));
+  }
+  const data = getBenchmarks(db, from);
+  res.json({ ...data, ...(Object.keys(errors).length ? { errors } : {}) });
+});
+
+// Healthcheck do Coolify: não depende da Pluggy
+app.get("/api/health", (_req, res) => {
+  const last = db.prepare("SELECT date, total_balance FROM snapshots ORDER BY date DESC LIMIT 1").get();
+  res.json({ ok: true, uptime: Math.round(process.uptime()), lastSnapshot: last?.date || null });
 });
 
 // Dispara nova sincronização do item na Pluggy (busca dados frescos no banco)
@@ -129,6 +154,8 @@ cron.schedule("30 8 * * *", async () => {
   } catch (err) {
     console.error("Falha no snapshot diário:", err.message);
   }
+  const { errors } = await updateBenchmarks(db, { startISO: firstSnapshotDate() });
+  for (const [serie, msg] of Object.entries(errors)) console.error(`Falha ao atualizar ${serie}:`, msg);
 }, { timezone: "America/Sao_Paulo" });
 
 app.listen(PORT, () => console.log(`Carteira rodando em http://0.0.0.0:${PORT}`));
