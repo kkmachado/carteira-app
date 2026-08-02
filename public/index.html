@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Carteira</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#14261F" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; }
+  :root {
+    --bg:#F2F1EB; --card:#FBFAF6; --border:#E2E0D6; --ink:#14261F; --mut:#6B7066;
+    --cdi:#2563EB; --ipca:#B45309; --pre:#0F766E; --red:#B91C1C;
+  }
+  body {
+    font-family:'Archivo',system-ui,sans-serif; background:var(--bg); color:var(--ink);
+    padding: max(16px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    max-width: 860px; margin: 0 auto;
+  }
+  .mono { font-family:'IBM Plex Mono',monospace; }
+  header { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .eyebrow { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:var(--mut); margin-bottom:4px; }
+  h1 { font-size:26px; font-weight:800; font-stretch:90%; letter-spacing:-.02em; }
+  .total { font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:500; text-align:right; }
+  .total small { display:block; font-family:'Archivo'; font-size:12px; color:var(--mut); font-weight:400; }
+  .kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:12px; }
+  @media(min-width:640px){ .kpis{ grid-template-columns:repeat(4,1fr);} }
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .kpi .l { font-size:11.5px; color:var(--mut); margin-bottom:3px; }
+  .kpi .v { font-family:'IBM Plex Mono',monospace; font-size:17px; font-weight:500; }
+  .kpi .s { font-size:11.5px; color:var(--mut); margin-top:2px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .card h2 { font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#3E4A42; margin-bottom:10px; }
+  canvas { max-height:220px; }
+  .issuer { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:4px 0; }
+  .issuer .name { width:118px; }
+  .track { flex:1; height:7px; background:#E9E7DD; border-radius:4px; overflow:hidden; }
+  .fill { height:100%; border-radius:4px; background:var(--ink); }
+  .fill.over { background:var(--red); }
+  .issuer .val { font-family:'IBM Plex Mono',monospace; font-size:12px; width:80px; text-align:right; }
+  .asset { display:flex; align-items:center; gap:10px; padding:10px 4px; border-top:1px solid #ECEAE0; }
+  .tag { font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:500; padding:3px 6px; border-radius:6px; white-space:nowrap; }
+  .asset .info { flex:1; min-width:0; }
+  .asset .t { font-weight:600; font-size:13.5px; }
+  .asset .d { font-size:12px; color:var(--mut); }
+  .asset .money { text-align:right; }
+  .asset .b { font-family:'IBM Plex Mono',monospace; font-size:13.5px; font-weight:500; }
+  .asset .p { font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
+  .isento { font-size:10px; font-weight:600; color:var(--pre); background:#0F766E14; border-radius:5px; padding:1px 5px; margin-left:6px; }
+  .btn { border:1px solid #D8D5C9; background:transparent; border-radius:8px; padding:6px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; color:#3E4A42; }
+  .btn:active { background:#E9E7DD; }
+  footer { font-size:11.5px; color:#8A8E82; line-height:1.5; margin-top:8px; }
+  #status { font-size:12px; color:var(--mut); }
+  .stale { color:var(--red); }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="eyebrow">CARTEIRA · PLUGGY · <span id="syncDate">—</span></div>
+      <h1>Renda fixa</h1>
+    </div>
+    <div class="total"><span id="totalBal">—</span><small id="assetCount"></small></div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi"><div class="l">Aplicado</div><div class="v" id="kOriginal">—</div></div>
+    <div class="kpi"><div class="l">Rendimento bruto</div><div class="v" id="kProfit" style="color:var(--pre)">—</div><div class="s" id="kProfitPct"></div></div>
+    <div class="kpi"><div class="l">IR provisionado</div><div class="v" id="kTaxes" style="color:var(--ipca)">—</div></div>
+    <div class="kpi"><div class="l">Isento de IR</div><div class="v" id="kIsento">—</div><div class="s">LCA / LCI</div></div>
+  </div>
+
+  <div class="card"><h2>Evolução da carteira</h2><canvas id="chHistory"></canvas></div>
+
+  <div class="card"><h2>Por indexador</h2><canvas id="chIndexer" style="max-height:200px"></canvas></div>
+
+  <div class="card"><h2>Vencimentos por ano</h2><canvas id="chDue"></canvas></div>
+
+  <div class="card"><h2>Concentração por emissor</h2><div id="issuers"></div></div>
+
+  <div class="card">
+    <h2 style="display:flex;justify-content:space-between;align-items:center">
+      Ativos <button class="btn" id="refreshBtn">Sincronizar banco</button>
+    </h2>
+    <div id="status"></div>
+    <div id="assets"></div>
+  </div>
+
+  <footer>Saldo líquido já desconta IR provisionado. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Snapshot diário às 08:30.</footer>
+
+<script>
+const BRL  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+const BRL2 = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
+const PCT  = v => v.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
+const IX_COLOR = { 'CDI':'#2563EB', 'IPCA+':'#B45309', 'Prefixado':'#0F766E' };
+const SUB = { CDB:'CDB', LCA:'LCA', LCI:'LCI', TREASURY:'Tesouro', DEBENTURES:'Debênture', MULTIMARKET_FUND:'Fundo multimercado', STOCK_FUND:'Fundo de ações' };
+const ix = a => a.rateType === 'CDI' ? 'CDI' : a.rateType === 'IPCA' ? 'IPCA+' : 'Prefixado';
+const isento = a => a.subtype === 'LCA' || a.subtype === 'LCI';
+const rateLabel = a => {
+  const k = ix(a);
+  if (k === 'CDI') return `${a.rate}% do CDI`;
+  if (k === 'IPCA+') return `IPCA + ${Number(a.fixedAnnualRate || a.rate).toLocaleString('pt-BR',{maximumFractionDigits:2})}%`;
+  return `${Number(a.fixedAnnualRate).toLocaleString('pt-BR',{maximumFractionDigits:2})}% a.a.`;
+};
+Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#6B7066';
+let charts = {};
+
+async function load() {
+  const [pRes, hRes] = await Promise.all([fetch('/api/portfolio'), fetch('/api/history')]);
+  const p = await pRes.json();
+  const history = await hRes.json();
+  if (p.error && !p.investments) {
+    document.getElementById('status').textContent = 'Erro ao consultar a Pluggy: ' + p.error;
+    return;
+  }
+  const inv = p.investments;
+  const active = inv.filter(a => a.status === 'ACTIVE');
+
+  const bal = active.reduce((s,a)=>s+(a.balance||0),0);
+  const orig = active.reduce((s,a)=>s+(a.amountOriginal||0),0);
+  const gross = active.reduce((s,a)=>s+(a.amount||0),0);
+  const taxes = active.reduce((s,a)=>s+(a.taxes||0)+(a.taxes2||0),0);
+  const isentoBal = active.filter(isento).reduce((s,a)=>s+a.balance,0);
+
+  document.getElementById('syncDate').textContent = new Date(p.syncedAt).toLocaleDateString('pt-BR') + (p.stale ? ' (cache)' : '');
+  document.getElementById('syncDate').className = p.stale ? 'stale' : '';
+  document.getElementById('totalBal').textContent = BRL2(bal);
+  document.getElementById('assetCount').textContent = `saldo líquido · ${active.length} ativos`;
+  document.getElementById('kOriginal').textContent = BRL(orig);
+  document.getElementById('kProfit').textContent = BRL(gross - orig);
+  document.getElementById('kProfitPct').textContent = PCT((gross-orig)/orig*100);
+  document.getElementById('kTaxes').textContent = BRL(taxes);
+  document.getElementById('kIsento').textContent = PCT(isentoBal/bal*100);
+
+  /* Histórico */
+  draw('chHistory','line',{
+    labels: history.map(r=>new Date(r.date+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
+    datasets:[
+      { label:'Saldo líquido', data:history.map(r=>r.total_balance), borderColor:'#14261F', backgroundColor:'#14261F18', fill:true, tension:.3, pointRadius:2 },
+      { label:'Aplicado', data:history.map(r=>r.total_original), borderColor:'#8A8E82', borderDash:[4,4], pointRadius:0, tension:.3 }
+    ]
+  },{ plugins:{legend:{display:true,position:'bottom'}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
+
+  /* Indexador */
+  const byIx = {};
+  active.forEach(a => byIx[ix(a)] = (byIx[ix(a)]||0)+a.balance);
+  draw('chIndexer','doughnut',{
+    labels:Object.keys(byIx),
+    datasets:[{ data:Object.values(byIx), backgroundColor:Object.keys(byIx).map(k=>IX_COLOR[k]), borderWidth:0 }]
+  },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], lineWidth:0 })) } } } });
+
+  /* Vencimentos por ano */
+  const byYear = {};
+  active.forEach(a => { const y = new Date(a.dueDate).getFullYear(); byYear[y]=(byYear[y]||0)+a.balance; });
+  draw('chDue','bar',{
+    labels:Object.keys(byYear),
+    datasets:[{ data:Object.values(byYear), backgroundColor:'#14261F', borderRadius:3 }]
+  },{ plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
+
+  /* Emissores */
+  const byIssuer = {};
+  active.forEach(a => { const n = a.issuer || 'Tesouro Nacional'; byIssuer[n]=(byIssuer[n]||0)+a.balance; });
+  document.getElementById('issuers').innerHTML = Object.entries(byIssuer)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([n,v])=>`<div class="issuer">
+        <span class="name">${n.replace(/ S\.?A\.?$| S\/A$/i,'')}</span>
+        <div class="track"><div class="fill ${v>250000?'over':''}" style="width:${v/bal*100}%"></div></div>
+        <span class="val">${BRL(v)}</span>
+      </div>`).join('');
+
+  /* Lista de ativos */
+  document.getElementById('assets').innerHTML = active
+    .sort((a,b)=>b.balance-a.balance)
+    .map(a => {
+      const profit = a.amount - (a.amountOriginal||0);
+      const k = ix(a), c = IX_COLOR[k];
+      return `<div class="asset">
+        <span class="tag" style="background:${c}18;color:${c}">${k}</span>
+        <div class="info">
+          <div class="t">${SUB[a.subtype]||a.subtype} · ${(a.issuer||'Tesouro Nacional').replace(/ S\.?A\.?$| S\/A$/i,'')}${isento(a)?'<span class="isento">isento IR</span>':''}</div>
+          <div class="d">${rateLabel(a)} · vence ${new Date(a.dueDate).toLocaleDateString('pt-BR')}</div>
+        </div>
+        <div class="money">
+          <div class="b">${BRL2(a.balance)}</div>
+          <div class="p" style="color:${profit>=0?'#0F766E':'#B91C1C'}">${profit>=0?'+':''}${BRL(profit)}</div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function draw(id, type, data, opts) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), { type, data, options:{ responsive:true, maintainAspectRatio:true, ...opts } });
+}
+
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  const st = document.getElementById('status');
+  st.textContent = 'Disparando sincronização na Pluggy…';
+  const r = await fetch('/api/refresh', { method:'POST' }).then(r=>r.json());
+  st.textContent = r.ok ? r.message + ' Puxe para atualizar depois.' : 'Erro: ' + r.error;
+  setTimeout(()=>{ st.textContent=''; }, 8000);
+});
+
+load();
+</script>
+</body>
+</html>
