@@ -3,19 +3,41 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Carteira</title>
+<title>Investimentos</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="theme-color" content="#14261F" />
+<script>
+  // Resolve o tema antes do primeiro paint (localStorage > preferência do SO),
+  // para a página nunca "piscar" no tema errado ao carregar.
+  (function () {
+    var saved = localStorage.getItem('theme');
+    var mode = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', mode);
+  })();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap');
   * { box-sizing: border-box; margin: 0; }
   :root {
-    --bg:#F2F1EB; --card:#FBFAF6; --border:#E2E0D6; --ink:#14261F; --mut:#6B7066;
-    --cdi:#2563EB; --ipca:#B45309; --pre:#0F766E; --red:#B91C1C;
+    color-scheme: light dark;
+    --bg:#F2F1EB; --card:#FBFAF6; --border:#E2E0D6; --divider:#ECEAE0; --control-border:#D8D5C9; --track:#E9E7DD;
+    --ink:#14261F; --ink2:#3E4A42; --mut:#6B7066; --faint:#8A8E82;
+    --pre:#0F766E; --red:#B91C1C; --ipca:#B45309;
+    --ix-cdi:#2563EB; --ix-ipca:#B45309; --ix-pre:#0F766E;
+    --invert-fg:#FBFAF6; --chart-grid:rgba(20,38,31,.08);
+    --pre-bg:#0F766E14; --ipca-bg:#B4530914; --ipca-border:#B4530940; --red-bg:#B91C1C10; --red-border:#B91C1C40;
+  }
+  :root[data-theme="dark"] {
+    --bg:#12181A; --card:#1B2226; --border:#2A3236; --divider:#242C30; --control-border:#3A4347; --track:#242C30;
+    --ink:#ECEAE2; --ink2:#C7CBC2; --mut:#8B948E; --faint:#6E7671;
+    --pre:#2DD4BF; --red:#F87171; --ipca:#FB923C;
+    --ix-cdi:#60A5FA; --ix-ipca:#FB923C; --ix-pre:#2DD4BF;
+    --invert-fg:#12181A; --chart-grid:rgba(255,255,255,.08);
+    --pre-bg:#2DD4BF1F; --ipca-bg:#FB923C1F; --ipca-border:#FB923C4D; --red-bg:#F871711A; --red-border:#F871714D;
   }
   body {
     font-family:'Archivo',system-ui,sans-serif; background:var(--bg); color:var(--ink);
@@ -26,8 +48,9 @@
   header { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
   .eyebrow { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:var(--mut); margin-bottom:4px; }
   h1 { font-size:26px; font-weight:800; font-stretch:90%; letter-spacing:-.02em; }
-  .total { font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:500; text-align:right; }
-  .total small { display:block; font-family:'Archivo'; font-size:12px; color:var(--mut); font-weight:400; }
+  #themeBtn { border:1px solid var(--control-border); background:var(--card); color:var(--ink2); border-radius:999px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+  #themeBtn:active { background:var(--track); }
+  #themeBtn svg { width:17px; height:17px; }
   .kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:12px; }
   @media(min-width:640px){ .kpis{ grid-template-columns:repeat(4,1fr);} }
   .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
@@ -35,49 +58,94 @@
   .kpi .v { font-family:'IBM Plex Mono',monospace; font-size:17px; font-weight:500; }
   .kpi .s { font-size:11.5px; color:var(--mut); margin-top:2px; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
-  .card h2 { font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#3E4A42; margin-bottom:10px; }
+  .card h2 { font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink2); margin-bottom:10px; }
   canvas { max-height:220px; }
   .issuer { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:4px 0; }
   .issuer .name { width:118px; }
-  .track { flex:1; height:7px; background:#E9E7DD; border-radius:4px; overflow:hidden; }
+  .track { flex:1; height:7px; background:var(--track); border-radius:4px; overflow:hidden; }
   .fill { height:100%; border-radius:4px; background:var(--ink); }
   .fill.over { background:var(--red); }
   .issuer .val { font-family:'IBM Plex Mono',monospace; font-size:12px; width:80px; text-align:right; }
-  .asset { display:flex; align-items:center; gap:10px; padding:10px 4px; border-top:1px solid #ECEAE0; }
+  .asset { display:flex; align-items:flex-start; gap:10px; padding:11px 4px; border-top:1px solid var(--divider); }
   .tag { font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:500; padding:3px 6px; border-radius:6px; white-space:nowrap; }
+  .tag.sub { background:var(--track); color:var(--ink2); }
+  /* cor do indexador vem de --c (inline): fundo é a própria cor esmaecida, então
+     a tag acompanha a troca de tema sem precisar re-renderizar a lista */
+  .tag.ix { color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); }
+  .asset .tags { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:5px; }
   .asset .info { flex:1; min-width:0; }
   .asset .t { font-weight:600; font-size:13.5px; }
   .asset .d { font-size:12px; color:var(--mut); }
   .asset .money { text-align:right; }
   .asset .b { font-family:'IBM Plex Mono',monospace; font-size:13.5px; font-weight:500; }
   .asset .p { font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
-  .isento { font-size:10px; font-weight:600; color:var(--pre); background:#0F766E14; border-radius:5px; padding:1px 5px; margin-left:6px; }
-  .btn { border:1px solid #D8D5C9; background:transparent; border-radius:8px; padding:6px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; color:#3E4A42; }
-  .btn:active { background:#E9E7DD; }
-  footer { font-size:11.5px; color:#8A8E82; line-height:1.5; margin-top:8px; }
+  .isento { font-size:10px; font-weight:600; color:var(--pre); background:var(--pre-bg); border-radius:5px; padding:1px 5px; margin-left:6px; }
+  .btn { border:1px solid var(--control-border); background:transparent; border-radius:8px; padding:6px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; color:var(--ink2); }
+  .btn:active { background:var(--track); }
+  footer { font-size:11.5px; color:var(--faint); line-height:1.5; margin-top:8px; }
   #status { font-size:12px; color:var(--mut); }
+  #syncNote { font-size:11.5px; color:var(--mut); margin:-8px 0 12px; line-height:1.5; }
+  #syncNote b { font-weight:600; color:var(--ink2); }
   .stale { color:var(--red); }
   #banner { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px; border:1px solid; }
-  #banner.warn { display:block; background:#B4530914; border-color:#B4530940; color:var(--ipca); }
-  #banner.err { display:block; background:#B91C1C10; border-color:#B91C1C40; color:var(--red); }
-  .bench { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-  .bench .b-item { text-align:center; padding:6px 4px; }
-  .bench .b-l { font-size:11.5px; color:var(--mut); margin-bottom:2px; }
-  .bench .b-v { font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:500; }
+  #banner.warn { display:block; background:var(--ipca-bg); border-color:var(--ipca-border); color:var(--ipca); }
+  #banner.err { display:block; background:var(--red-bg); border-color:var(--red-border); color:var(--red); }
   .bench-note { font-size:11px; color:var(--mut); text-align:center; margin-top:8px; }
   .skeleton { color:var(--mut); opacity:.5; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { font-family:'IBM Plex Mono',monospace; font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--control-border); background:transparent; color:var(--ink2); cursor:pointer; }
+  .chip.on { background:var(--ink); color:var(--invert-fg); border-color:var(--ink); }
+  .hero-bal { padding-bottom:14px; margin-bottom:12px; border-bottom:1px solid var(--border); }
+  .hero-total { font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:500; letter-spacing:-.02em; }
+  .hero-grid { display:flex; align-items:baseline; gap:26px; margin:14px 0 8px; flex-wrap:wrap; }
+  .hero-l { font-size:11.5px; color:var(--mut); margin-bottom:2px; }
+  .hero-cdi { font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:500; letter-spacing:-.02em; }
+  .hero-cdi small { font-size:13px; color:var(--mut); font-weight:400; margin-left:2px; }
+  .hero-v { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:500; }
+  .hero-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; }
+  .hero-note { font-size:11px; color:var(--mut); }
+  .gutoggle { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink2); cursor:pointer; }
+  .tablewrap { overflow-x:auto; margin:0 -4px; }
+  table.pt { border-collapse:collapse; width:100%; min-width:580px; }
+  table.pt th { text-align:right; font-size:10.5px; color:var(--mut); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--border); }
+  table.pt th:first-child, table.pt td:first-child { text-align:left; }
+  table.pt td { font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; padding:8px; border-bottom:1px solid var(--divider); white-space:nowrap; }
+  table.pt td.cat { font-family:'Archivo',system-ui,sans-serif; font-weight:600; font-size:12.5px; cursor:pointer; }
+  table.pt tr.sub td { color:var(--mut); font-size:11px; }
+  table.pt tr.sub td.cat { font-weight:400; font-size:11.5px; color:var(--ink); padding-left:18px; cursor:default; }
 </style>
 </head>
 <body>
   <header>
     <div>
       <div class="eyebrow">CARTEIRA · PLUGGY · <span id="syncDate">—</span></div>
-      <h1>Renda fixa</h1>
+      <h1>Investimentos</h1>
     </div>
-    <div class="total"><span id="totalBal">—</span><small id="assetCount"></small></div>
+    <button id="themeBtn" aria-label="Alternar tema claro/escuro" title="Alternar tema"></button>
   </header>
 
+  <div id="syncNote"></div>
+
   <div id="banner"></div>
+
+  <div class="card">
+    <div class="hero-bal">
+      <div class="hero-l">Saldo líquido</div>
+      <div class="hero-total" id="totalBal">—</div>
+      <div class="hero-note" id="assetCount"></div>
+    </div>
+    <div class="chips" id="periodSel"></div>
+    <div class="hero-grid">
+      <div><div class="hero-l">% do CDI no período</div><div class="hero-cdi" id="hPctCdi">—</div></div>
+      <div><div class="hero-l">Rendeu</div><div class="hero-v" id="hIncome" style="color:var(--pre)">—</div><div class="hero-note" id="hAcc"></div></div>
+    </div>
+    <div class="hero-foot">
+      <label class="gutoggle" title="LCA/LCI são isentas de IR: com gross up o rendimento delas é convertido no equivalente bruto de um ativo tributado (tabela regressiva de IR pelo prazo decorrido), para comparação justa com CDBs e com o CDI.">
+        <input type="checkbox" id="guToggle" checked /> com gross up ⓘ
+      </label>
+      <span class="hero-note" id="hNote"></span>
+    </div>
+  </div>
 
   <div class="kpis">
     <div class="kpi"><div class="l">Aplicado</div><div class="v" id="kOriginal">—</div></div>
@@ -87,13 +155,12 @@
   </div>
 
   <div class="card">
-    <h2>Carteira vs benchmarks</h2>
-    <div class="bench">
-      <div class="b-item"><div class="b-l">Carteira</div><div class="b-v" id="bCart">—</div></div>
-      <div class="b-item"><div class="b-l">CDI</div><div class="b-v" id="bCdi" style="color:var(--cdi)">—</div></div>
-      <div class="b-item"><div class="b-l">IPCA</div><div class="b-v" id="bIpca" style="color:var(--ipca)">—</div></div>
-    </div>
-    <div class="bench-note" id="bNote"></div>
+    <h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      Rentabilidade acumulada <span class="chips" id="benchSel"></span>
+    </h2>
+    <div class="chips" id="periodSelPerf" style="margin-bottom:10px"></div>
+    <canvas id="chPerf"></canvas>
+    <div class="bench-note" id="perfRange"></div>
   </div>
 
   <div class="card"><h2>Evolução da carteira</h2><canvas id="chHistory"></canvas></div>
@@ -105,20 +172,26 @@
   <div class="card"><h2>Concentração por emissor</h2><div id="issuers"></div></div>
 
   <div class="card">
-    <h2 style="display:flex;justify-content:space-between;align-items:center">
-      Ativos <button class="btn" id="refreshBtn">Sincronizar banco</button>
+    <h2>Meus produtos</h2>
+    <div class="tablewrap" id="catTable"></div>
+    <div class="bench-note" id="catNote"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      Ativos <span class="chips" id="assetSort"></span>
     </h2>
     <div id="status"></div>
     <div id="assets"></div>
   </div>
 
-  <footer>Saldo líquido já desconta IR provisionado. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Snapshot diário às 08:30.</footer>
+  <footer>Saldo líquido já desconta IR provisionado. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Snapshot diário às 12:00, depois da sincronização da Pluggy.</footer>
 
 <script>
 const BRL  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const BRL2 = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
 const PCT  = v => v.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
-const IX_COLOR = { 'CDI':'#2563EB', 'IPCA+':'#B45309', 'Prefixado':'#0F766E' };
+const IX_VAR = { 'CDI':'--ix-cdi', 'IPCA+':'--ix-ipca', 'Prefixado':'--ix-pre' };
 const SUB = { CDB:'CDB', LCA:'LCA', LCI:'LCI', TREASURY:'Tesouro', DEBENTURES:'Debênture', MULTIMARKET_FUND:'Fundo multimercado', STOCK_FUND:'Fundo de ações' };
 const ix = a => a.rateType === 'CDI' ? 'CDI' : a.rateType === 'IPCA' ? 'IPCA+' : 'Prefixado';
 const isento = a => a.subtype === 'LCA' || a.subtype === 'LCI';
@@ -130,8 +203,62 @@ const rateLabel = a => {
 };
 Chart.defaults.font.family = "'IBM Plex Mono', monospace";
 Chart.defaults.font.size = 11;
-Chart.defaults.color = '#6B7066';
 let charts = {};
+
+/* ---------- Tema claro/escuro ----------
+   As cores dos gráficos não são CSS: precisam ser lidas das variáveis na hora do
+   desenho. Os configs guardam o token 'var(--x)' e `draw()` resolve, para o mesmo
+   config poder ser redesenhado quando o tema muda. */
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function resolveVars(v) {
+  if (typeof v === 'string') { const m = v.match(/^var\((--[\w-]+)\)$/); return m ? cssVar(m[1]) : v; }
+  if (Array.isArray(v)) return v.map(resolveVars);
+  if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+    const o = {}; for (const k in v) o[k] = resolveVars(v[k]); return o;
+  }
+  return v;
+}
+const chartCfg = {};
+
+const THEME_BG = { light:'#F2F1EB', dark:'#12181A' };
+const ICON = {
+  // ícone mostra o tema para o qual se vai trocar
+  dark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z"/></svg>',
+};
+
+function applyTheme(mode) {
+  document.documentElement.setAttribute('data-theme', mode);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', THEME_BG[mode]);
+  document.getElementById('themeBtn').innerHTML = ICON[mode];
+  Chart.defaults.color = cssVar('--mut');
+  Chart.defaults.borderColor = cssVar('--chart-grid');
+  for (const id in chartCfg) { const c = chartCfg[id]; draw(id, c.type, c.data, c.opts); }
+  if (perf && !perf.empty) renderPerf(); // o chip do benchmark tem cor inline
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const mode = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', mode);
+  applyTheme(mode);
+});
+
+/* Sem escolha salva, o app segue o sistema — inclusive quando ele muda com o app aberto */
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  if (!localStorage.getItem('theme')) applyTheme(e.matches ? 'dark' : 'light');
+});
+
+/* Frescor dos dados: quando a Pluggy coletou no banco e quando coleta de novo.
+   A conexão MeuPluggy sincroniza sozinha 1x/dia e não aceita sync sob demanda —
+   por isso a informação é passiva, sem botão. */
+function renderSyncNote(sync) {
+  const el = document.getElementById('syncNote');
+  if (!sync || !sync.lastUpdatedAt) { el.textContent = ''; return; }
+  const dt = iso => new Date(iso).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(', ', ' ');
+  const partes = ['dados do banco: <b>' + dt(sync.lastUpdatedAt) + '</b>'];
+  if (sync.nextAutoSyncAt) partes.push('próxima sincronização: <b>' + dt(sync.nextAutoSyncAt) + '</b>');
+  el.innerHTML = partes.join(' · ') + '<br>a conexão atualiza sozinha 1x por dia.';
+}
 
 const banner = (cls, msg) => {
   const el = document.getElementById('banner');
@@ -139,47 +266,160 @@ const banner = (cls, msg) => {
   el.textContent = msg || '';
 };
 
-/* Simula total_original rendendo 100% do CDI desde o primeiro snapshot.
-   Aportes/resgates (Δtotal_original) entram na simulação na data em que ocorrem. */
-function cdiLine(history, cdiRows) {
-  if (!history.length || !cdiRows.length) return null;
-  const rate = Object.fromEntries(cdiRows.map(r => [r.date, r.value]));
-  let sim = history[0].total_original;
-  const out = [sim];
-  for (let i = 1; i < history.length; i++) {
-    let d = new Date(history[i-1].date + 'T12:00Z');
-    const end = new Date(history[i].date + 'T12:00Z');
-    while (d < end) {
-      d = new Date(d.getTime() + 86400000);
-      const r = rate[d.toISOString().slice(0,10)];
-      if (r) sim *= 1 + r/100;             // só dias úteis têm taxa no SGS
+/* ---------- Rentabilidade (/api/performance) ---------- */
+const PCT2 = v => (v >= 0 ? '+' : '') + (v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
+const issuerName = a => (a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$| S\/A$/i,'');
+const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const PERIODS = [['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
+const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']];
+/* Carteira é sempre preta; os benchmarks usam matizes saturadas e bem separadas
+   entre si e do preto — a 1px, tons escuros (o âmbar e o vinho antigos) colavam
+   na linha da carteira. Só um benchmark aparece por vez. */
+const BENCH_COLOR = { cdi:'#0B6FEF', ipca:'#F97316', selic:'#9333EA', ibov:'#DB2777' };
+const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo']];
+const state = { period:'ytd', bench:'cdi', grossup:true, assetSort:'valor' };
+let assetsCache = null;
+const expanded = new Set();
+let perf = null, invById = {};
+
+function chips(elId, items, sel, onPick) {
+  const el = document.getElementById(elId);
+  el.innerHTML = items.map(([v,l]) => `<button class="chip ${String(v)===String(sel)?'on':''}" data-v="${v}">${l}</button>`).join('');
+  el.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => onPick(b.dataset.v)));
+}
+
+/* Falha aqui não derruba o resto do app, mas precisa aparecer: sem isso o card
+   fica em "—" para sempre (ex.: servidor antigo, sem a rota → 404 em HTML). */
+function perfFail(msg) {
+  perf = null;
+  document.getElementById('hPctCdi').textContent = '—';
+  document.getElementById('hNote').innerHTML = '<span class="stale">' + msg + '</span>';
+  console.warn('Performance indisponível:', msg);
+}
+
+async function loadPerf() {
+  try {
+    const res = await fetch('/api/performance?period=' + state.period);
+    if (!res.ok) {
+      return perfFail(res.status === 404
+        ? 'rentabilidade indisponível: reinicie o servidor (rota /api/performance ausente)'
+        : 'rentabilidade indisponível (HTTP ' + res.status + ')');
     }
-    sim += history[i].total_original - history[i-1].total_original;
-    out.push(sim);
+    const data = await res.json();
+    if (data.error) return perfFail('erro no cálculo: ' + data.error);
+    if (data.empty) return perfFail('sem snapshots ainda — os números aparecem no primeiro fechamento');
+    perf = data;
+  } catch (e) {
+    return perfFail(String(e.message || e));
   }
-  return out;
+  renderPerf();
 }
 
-/* Card comparativo: rentabilidade no período dos snapshots vs CDI e IPCA acumulados */
-function renderBenchCard(history, bench) {
-  if (!history.length) return;
-  const first = history[0], last = history[history.length-1];
-  const fmtDate = new Date(first.date + 'T12:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
-  document.getElementById('bNote').textContent = 'histórico desde ' + fmtDate + ' · rendimento sobre o aplicado';
-
-  const aportes = last.total_original - first.total_original;
-  const rendimento = (last.total_gross - first.total_gross) - aportes;
-  const base = first.total_gross + Math.max(aportes, 0);
-  document.getElementById('bCart').textContent = base > 0
-    ? (rendimento >= 0 ? '+' : '') + (rendimento/base*100).toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' : '—';
-
-  const acum = rows => rows.length ? (rows.reduce((f,r) => f*(1+r.value/100), 1) - 1) * 100 : null;
-  const cdiRows  = (bench.cdi  || []).filter(r => r.date > first.date && r.date <= last.date);
-  const ipcaRows = (bench.ipca || []).filter(r => r.date <= last.date);
-  const cdiAc = acum(cdiRows), ipcaAc = acum(ipcaRows);
-  document.getElementById('bCdi').textContent  = cdiAc  !== null ? '+' + cdiAc.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' : '—';
-  document.getElementById('bIpca').textContent = ipcaAc !== null ? '+' + ipcaAc.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' : '—';
+/* Seletor de período existe desde o início: continua utilizável (para tentar outro
+   período) mesmo quando o cálculo falhou. As duas instâncias — hero e gráfico de
+   rentabilidade — leem e escrevem o mesmo `state.period`, então ficam sincronizadas. */
+function renderPeriodChips() {
+  const pick = v => { state.period = v; renderPeriodChips(); loadPerf(); };
+  chips('periodSel', PERIODS, state.period, pick);
+  chips('periodSelPerf', PERIODS, state.period, pick);
 }
+
+function renderPerf() {
+  if (!perf || perf.empty) return;
+  chips('benchSel', BENCHES, state.bench, v => { state.bench = v; renderPerf(); });
+  // o chip selecionado veste a cor da própria linha no gráfico
+  const chipOn = document.querySelector('#benchSel .chip.on');
+  if (chipOn) { chipOn.style.background = BENCH_COLOR[state.bench]; chipOn.style.borderColor = BENCH_COLOR[state.bench]; }
+
+  const g = state.grossup, h = perf.hero;
+  const pctCdi = g ? h.pctCdiGrossUp : h.pctCdi;
+  document.getElementById('hPctCdi').innerHTML = pctCdi == null ? '—'
+    : Math.round(pctCdi).toLocaleString('pt-BR') + '<small>% do CDI</small>';
+  document.getElementById('hIncome').textContent = BRL2(h.income);
+  document.getElementById('hAcc').textContent = PCT2(g ? h.accGrossUp : h.acc) + ' no período';
+  // com um único snapshot não existe intervalo entre dois dias: nada a calcular ainda
+  const since = new Date(perf.historySince + 'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  document.getElementById('hNote').textContent = perf.twr.length < 2
+    ? 'primeiro snapshot em ' + since + ' — a rentabilidade começa no próximo fechamento'
+    : 'histórico desde ' + since;
+
+  renderPerfChart();
+  renderCatTable();
+}
+
+/* Valor do benchmark na data de cada snapshot: último ponto ≤ data (degrau).
+   Ambas as linhas partem de 0 no início do período. */
+function stepMap(dates, series) {
+  let i = 0, last = 0;
+  return dates.map(d => {
+    while (i < series.length && series[i].date <= d) last = series[i++].acc;
+    return last * 100;
+  });
+}
+
+/* Gráfico 1 — rentabilidade acumulada (%) da carteira vs benchmark selecionado */
+function renderPerfChart() {
+  const twr = state.grossup ? perf.twrGrossUp : perf.twr;
+  const dates = twr.map(p => p.date);
+  const bench = BENCHES.find(([v]) => v === state.bench)[1];
+  const d = iso => new Date(iso+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  document.getElementById('perfRange').textContent = `${d(perf.from)} a ${d(perf.to)} · ${state.grossup ? 'com' : 'sem'} gross up`;
+  draw('chPerf','line',{
+    labels: dates.map(d => new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
+    datasets: [
+      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:.25 },
+      { label:bench, data: stepMap(dates, perf.benchmarks[state.bench] || []), borderColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
+    ]
+  },{
+    // index + intersect:false: basta o cursor estar na vertical do ponto, em
+    // qualquer altura do gráfico, e o tooltip traz as duas séries lado a lado
+    interaction: { mode:'index', intersect:false, axis:'x' },
+    plugins:{ legend:{display:true,position:'bottom'},
+      tooltip:{ mode:'index', intersect:false,
+        callbacks:{ label: c => `${c.dataset.label}: ${c.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%` } } },
+    scales:{
+      x:{ ticks:{ maxTicksLimit:6, maxRotation:0 } },
+      y:{ ticks:{ callback: v => v.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' } },
+    }
+  });
+}
+
+/* Tabela por categoria (estilo Itaú "Meus produtos"); toque expande os ativos */
+function renderCatTable() {
+  const g = state.grossup;
+  const cols = ['mesAtual','mesAnterior','ano','m12'];
+  const fmt = w => w ? PCT2(g ? w.accGrossUp : w.acc) : '—';
+  const rows = perf.categories.map((c, ci) => {
+    const head = `<tr data-c="${ci}"><td class="cat">${SUB[c.subtype]||c.subtype}` +
+      `${c.isento ? '<span class="isento">' + (g ? 'bruto equiv.' : 'isento IR') + '</span>' : ''}</td>` +
+      cols.map(k => `<td>${fmt(c.windows[k])}</td>`).join('') +
+      `<td>${BRL(c.balance)}</td><td>${PCT(c.share*100)}</td></tr>`;
+    const subs = (expanded.has(ci) ? c.assetIds : []).map(id => {
+      const a = invById[id], w = perf.assets[id] && perf.assets[id].windows;
+      if (!a || !w) return '';
+      return `<tr class="sub"><td class="cat">${issuerName(a)} · ${rateLabel(a)}</td>` +
+        cols.map(k => `<td>${fmt(w[k])}</td>`).join('') +
+        `<td>${BRL(a.balance)}</td><td></td></tr>`;
+    }).join('');
+    return head + subs;
+  }).join('');
+  document.getElementById('catTable').innerHTML =
+    `<table class="pt"><thead><tr><th>Categoria</th><th>Mês</th><th>Mês ant.</th><th>Ano</th><th>12m</th><th>Saldo</th><th>% cart.</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.querySelectorAll('#catTable tr[data-c] td.cat').forEach(td =>
+    td.addEventListener('click', () => {
+      const i = Number(td.parentElement.dataset.c);
+      expanded.has(i) ? expanded.delete(i) : expanded.add(i);
+      renderCatTable();
+    }));
+  document.getElementById('catNote').textContent = 'rentabilidade TWR por janela · toque na categoria para ver os ativos';
+}
+
+document.getElementById('guToggle').addEventListener('change', (e) => {
+  state.grossup = e.target.checked;
+  renderPerf();
+});
+renderPeriodChips();
+applyTheme(document.documentElement.getAttribute('data-theme')); // ícone + defaults do Chart.js
 
 async function load() {
   document.getElementById('status').textContent = 'Carregando carteira…';
@@ -193,18 +433,13 @@ async function load() {
   }
   if (p.stale) banner('warn', 'Pluggy indisponível — exibindo cache de ' + new Date(p.syncedAt).toLocaleDateString('pt-BR') + '. (' + p.error + ')');
   else banner('', '');
+  renderSyncNote(p.sync);
   document.getElementById('status').textContent = '';
-
-  // benchmarks em paralelo ao render: falha aqui não derruba a carteira
-  let bench = { cdi: [], ipca: [] };
-  try {
-    const from = history.length ? history[0].date.slice(0,8) + '01' : '';
-    bench = await fetch('/api/benchmarks?from=' + from).then(r => r.json());
-  } catch (e) { console.warn('Benchmarks indisponíveis:', e); }
-  renderBenchCard(history, bench);
 
   const inv = p.investments;
   const active = inv.filter(a => a.status === 'ACTIVE');
+  invById = Object.fromEntries(active.map(a => [a.id, a]));
+  loadPerf(); // rentabilidade em paralelo: usa o snapshot que /api/portfolio acabou de gravar
 
   const bal = active.reduce((s,a)=>s+(a.balance||0),0);
   const orig = active.reduce((s,a)=>s+(a.amountOriginal||0),0);
@@ -215,30 +450,32 @@ async function load() {
   document.getElementById('syncDate').textContent = new Date(p.syncedAt).toLocaleDateString('pt-BR') + (p.stale ? ' (cache)' : '');
   document.getElementById('syncDate').className = p.stale ? 'stale' : '';
   document.getElementById('totalBal').textContent = BRL2(bal);
-  document.getElementById('assetCount').textContent = `saldo líquido · ${active.length} ativos`;
+  document.getElementById('assetCount').textContent = `${active.length} ativos · já descontado o IR provisionado`;
   document.getElementById('kOriginal').textContent = BRL(orig);
   document.getElementById('kProfit').textContent = BRL(gross - orig);
   document.getElementById('kProfitPct').textContent = PCT((gross-orig)/orig*100);
   document.getElementById('kTaxes').textContent = BRL(taxes);
   document.getElementById('kIsento').textContent = PCT(isentoBal/bal*100);
 
-  /* Histórico */
-  const cdiSim = cdiLine(history, bench.cdi || []);
-  draw('chHistory','line',{
-    labels: history.map(r=>new Date(r.date+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
+  /* Histórico: um ponto por mês (último snapshot do mês), em barras */
+  const porMes = new Map();
+  for (const r of history) porMes.set(r.date.slice(0,7), r); // ordenado por data: o último vence
+  const meses = [...porMes.entries()];
+  draw('chHistory','bar',{
+    labels: meses.map(([m]) => MESES[Number(m.slice(5)) - 1] + '/' + m.slice(2,4)),
     datasets:[
-      { label:'Saldo líquido', data:history.map(r=>r.total_balance), borderColor:'#14261F', backgroundColor:'#14261F18', fill:true, tension:.3, pointRadius:2 },
-      { label:'Aplicado', data:history.map(r=>r.total_original), borderColor:'#8A8E82', borderDash:[4,4], pointRadius:0, tension:.3 },
-      ...(cdiSim ? [{ label:'100% do CDI', data:cdiSim, borderColor:'#2563EB', borderDash:[2,3], pointRadius:0, tension:.3 }] : [])
+      { label:'Saldo líquido', data:meses.map(([,r]) => r.total_balance), backgroundColor:'var(--ink)', borderRadius:3 },
     ]
-  },{ plugins:{legend:{display:true,position:'bottom'}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
+  },{ plugins:{ legend:{display:false},
+      tooltip:{ callbacks:{ label: c => BRL2(c.parsed.y) } } },
+      scales:{ x:{ ticks:{ maxTicksLimit:12, maxRotation:0 } }, y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
 
   /* Indexador */
   const byIx = {};
   active.forEach(a => byIx[ix(a)] = (byIx[ix(a)]||0)+a.balance);
   draw('chIndexer','doughnut',{
     labels:Object.keys(byIx),
-    datasets:[{ data:Object.values(byIx), backgroundColor:Object.keys(byIx).map(k=>IX_COLOR[k]), borderWidth:0 }]
+    datasets:[{ data:Object.values(byIx), backgroundColor:Object.keys(byIx).map(k=>`var(${IX_VAR[k]})`), borderWidth:0 }]
   },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], lineWidth:0 })) } } } });
 
   /* Vencimentos por ano */
@@ -246,7 +483,7 @@ async function load() {
   active.forEach(a => { const y = new Date(a.dueDate).getFullYear(); byYear[y]=(byYear[y]||0)+a.balance; });
   draw('chDue','bar',{
     labels:Object.keys(byYear),
-    datasets:[{ data:Object.values(byYear), backgroundColor:'#14261F', borderRadius:3 }]
+    datasets:[{ data:Object.values(byYear), backgroundColor:'var(--ink)', borderRadius:3 }]
   },{ plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
 
   /* Emissores */
@@ -260,38 +497,52 @@ async function load() {
         <span class="val">${BRL(v)}</span>
       </div>`).join('');
 
-  /* Lista de ativos */
-  document.getElementById('assets').innerHTML = active
-    .sort((a,b)=>b.balance-a.balance)
-    .map(a => {
-      const profit = a.amount - (a.amountOriginal||0);
-      const k = ix(a), c = IX_COLOR[k];
-      return `<div class="asset">
-        <span class="tag" style="background:${c}18;color:${c}">${k}</span>
-        <div class="info">
-          <div class="t">${SUB[a.subtype]||a.subtype} · ${(a.issuer||'Tesouro Nacional').replace(/ S\.?A\.?$| S\/A$/i,'')}${isento(a)?'<span class="isento">isento IR</span>':''}</div>
-          <div class="d">${rateLabel(a)} · vence ${new Date(a.dueDate).toLocaleDateString('pt-BR')}</div>
+  renderAssets(active);
+}
+
+/* Lista de ativos. Ordenação por valor (saldo desc) ou por tipo (agrupa por
+   subtype, e dentro do grupo pelo saldo). */
+function renderAssets(active) {
+  if (active) assetsCache = active;
+  const lista = [...(assetsCache || [])];
+  if (state.assetSort === 'tipo') {
+    const ordem = Object.keys(SUB);
+    lista.sort((a,b) => {
+      const ia = ordem.indexOf(a.subtype), ib = ordem.indexOf(b.subtype);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || b.balance - a.balance;
+    });
+  } else {
+    lista.sort((a,b) => b.balance - a.balance);
+  }
+
+  chips('assetSort', ASSET_SORTS, state.assetSort, v => { state.assetSort = v; renderAssets(); });
+  document.getElementById('assets').innerHTML = lista.map(a => {
+    const profit = a.amount - (a.amountOriginal||0);
+    const k = ix(a);
+    return `<div class="asset">
+      <div class="info">
+        <div class="tags">
+          <span class="tag ix" style="--c:var(${IX_VAR[k]})">${k}</span>
+          <span class="tag sub">${SUB[a.subtype]||a.subtype}</span>
+          ${isento(a)?'<span class="isento">isento IR</span>':''}
         </div>
-        <div class="money">
-          <div class="b">${BRL2(a.balance)}</div>
-          <div class="p" style="color:${profit>=0?'#0F766E':'#B91C1C'}">${profit>=0?'+':''}${BRL(profit)}</div>
-        </div>
-      </div>`;
-    }).join('');
+        <div class="t">${issuerName(a)}</div>
+        <div class="d">${rateLabel(a)} · vence ${new Date(a.dueDate).toLocaleDateString('pt-BR')}</div>
+      </div>
+      <div class="money">
+        <div class="b">${BRL2(a.balance)}</div>
+        <div class="p" style="color:var(${profit>=0?'--pre':'--red'})">${profit>=0?'+':''}${BRL(profit)}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function draw(id, type, data, opts) {
+  chartCfg[id] = { type, data, opts };
   if (charts[id]) charts[id].destroy();
-  charts[id] = new Chart(document.getElementById(id), { type, data, options:{ responsive:true, maintainAspectRatio:true, ...opts } });
+  charts[id] = new Chart(document.getElementById(id),
+    resolveVars({ type, data, options:{ responsive:true, maintainAspectRatio:true, ...opts } }));
 }
-
-document.getElementById('refreshBtn').addEventListener('click', async () => {
-  const st = document.getElementById('status');
-  st.textContent = 'Disparando sincronização na Pluggy…';
-  const r = await fetch('/api/refresh', { method:'POST' }).then(r=>r.json());
-  st.textContent = r.ok ? r.message + ' Puxe para atualizar depois.' : 'Erro: ' + r.error;
-  setTimeout(()=>{ st.textContent=''; }, 8000);
-});
 
 load().catch(err => {
   banner('err', 'Falha ao carregar o app: ' + (err.message || err));

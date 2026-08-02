@@ -18,7 +18,8 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - **Deploy via Coolify** apontando para o repositório, build por Dockerfile, variáveis de ambiente pela UI do Coolify, volume em `/app/data`. Healthcheck em `GET /api/health`.
 - **Single-user, sem autenticação** por enquanto — o app só existe na rede local; não expor na internet.
 - A apiKey da Pluggy expira em 2h; `server.js` mantém cache com renovação automática (renova aos 110 min).
-- Snapshot diário automático às 08:30 America/Sao_Paulo (cron), que também atualiza o cache de benchmarks.
+- O item é do conector **MeuPluggy** (id 200): proxy da conexão original, atualizado **1x/dia** pela própria Pluggy (ver `nextAutoSyncAt` do item). `PATCH /items/{id}` é recusado com 400 `"MeuPluggy item cant be updated"` — não existe sync sob demanda pela API. Não existe rota de refresh: `/api/portfolio` devolve `sync` (`lastUpdatedAt`/`nextAutoSyncAt`/`status`) e o frontend exibe isso como linha passiva no cabeçalho. Forçar atualização só pelo portal meu.pluggy.ai.
+- Snapshot diário automático às 12:00 America/Sao_Paulo (cron), que também atualiza o cache de benchmarks. O horário é deliberado: fica **depois** do auto-sync do item na Pluggy (~11:13), senão o snapshot do dia guardaria a coleta do dia anterior.
 - Se a Pluggy estiver fora, `/api/portfolio` responde com o último snapshot salvo (`stale: true`).
 
 ## Semântica dos campos da Pluggy (`/investments`)
@@ -45,7 +46,21 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - Cálculos de agregação/performance no backend (módulos em `lib/`); o frontend só apresenta.
 - Não simular histórico passado: gráficos e comparativos usam apenas o range de snapshots existente.
 
+## Rentabilidade (spec-rentabilidade.md)
+
+- Cálculos puros em `lib/performance.js` (TWR/Modified Dietz, benchmarks acumulados, gross up, decomposição mensal), testados em `test/performance.test.js` (`npm test`, runner nativo do Node).
+- `GET /api/performance?period=ytd|3m|6m|12m|24m|max` entrega hero, séries dos gráficos, barras mensais e tabela por categoria/ativo; a resposta traz as versões com e sem gross up (toggle é client-side).
+- Fluxo diário: quando o payload tem os ativos, resgate total sai pelo valor **bruto** do dia anterior (evita o artefato do Δ`total_original`, que só captura principal).
+
+## Modo demo (dados fictícios)
+
+- `npm run seed:demo` gera `data/demo.db` com ~14 meses de snapshots falsos (`scripts/seed-demo.js`) e busca benchmarks **reais** do SGS/Yahoo para o mesmo período. O script recusa gravar em `carteira.db`.
+- `npm run demo` sobe o app com `DEMO=1 DB_PATH=data/demo.db`: não chama a Pluggy, não usa credenciais e não roda o cron. `npm start` volta ao banco real — nada a desfazer.
+- Serve só para validar telas/gráficos antes de existir histórico real. **Não misturar com o banco real** e não usar como base de nenhum cálculo de verdade.
+
 ## Comandos
 
 - Rodar local: `npm install && npm start` (porta 3000, `.env` preenchido)
+- Testes: `npm test`
+- Demo: `npm run seed:demo && npm run demo`
 - Docker: `docker compose up -d --build`

@@ -29,7 +29,7 @@ O manifest faz o app abrir em tela cheia (standalone), sem barra do Safari.
 - `GET /api/health` — healthcheck (usado pelo Coolify/Docker; não chama a Pluggy)
 - `POST /api/refresh` — dispara PATCH /items/{id} na Pluggy para sincronizar com o banco (dados novos chegam em minutos)
 
-Snapshot automático diário às 08:30 (America/Sao_Paulo).
+Snapshot automático diário às 12:00 (America/Sao_Paulo), depois do auto-sync da Pluggy.
 O banco fica em `./data/carteira.db` (volume persistente).
 
 ## Observações
