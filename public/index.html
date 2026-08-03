@@ -476,7 +476,10 @@ async function load() {
   draw('chIndexer','doughnut',{
     labels:Object.keys(byIx),
     datasets:[{ data:Object.values(byIx), backgroundColor:Object.keys(byIx).map(k=>`var(${IX_VAR[k]})`), borderWidth:0 }]
-  },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ color:'var(--ink2)', generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], lineWidth:0 })) } } } });
+  },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ color:'var(--ink2)',
+    // o Chart.js pinta o texto da legenda com legendItem.fontColor (não com labels.color)
+    // quando generateLabels é customizado — sem isso, cai no preto padrão do canvas
+    generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], fontColor:c.options.plugins.legend.labels.color, lineWidth:0 })) } } } });
 
   /* Vencimentos por ano */
   const byYear = {};
