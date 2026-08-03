@@ -41,6 +41,11 @@ db.exec(`
     total_gross REAL NOT NULL,
     payload TEXT NOT NULL            -- JSON completo do dia
   );
+  CREATE TABLE IF NOT EXISTS investment_txs (
+    investment_id TEXT PRIMARY KEY,
+    fetched_at TEXT NOT NULL,        -- ISO da última busca na Pluggy
+    payload TEXT NOT NULL            -- JSON das movimentações (mais recente primeiro)
+  );
 `);
 initBenchmarks(db);
 
@@ -144,6 +149,51 @@ app.get("/api/portfolio", async (_req, res) => {
         stale: true,
         error: String(err.message || err),
         investments: JSON.parse(last.payload),
+      });
+    }
+    res.status(502).json({ error: String(err.message || err) });
+  }
+});
+
+/* Movimentações de um ativo (aplicações/resgates) — `/investments/{id}/transactions`.
+   O detalhe do ativo só é aberto sob toque, então a busca é sob demanda e fica em
+   cache no SQLite: a lista quase nunca muda (só quando há aporte ou resgate) e o
+   item só sincroniza 1x/dia. Pluggy fora → devolve o cache marcado como `stale`. */
+const TX_TTL_MS = 12 * 60 * 60 * 1000;
+
+app.get("/api/investments/:id/transactions", async (req, res) => {
+  const id = req.params.id;
+  // o id vai concatenado na URL da Pluggy: só aceita o formato de id que ela emite
+  if (!/^[\w-]{1,64}$/.test(id)) return res.status(400).json({ error: "id inválido" });
+
+  const cached = db.prepare("SELECT fetched_at, payload FROM investment_txs WHERE investment_id = ?").get(id);
+  const fresh = cached && Date.now() - Date.parse(cached.fetched_at) < TX_TTL_MS;
+  if (DEMO || fresh) {
+    return res.json({
+      transactions: cached ? JSON.parse(cached.payload) : [],
+      cachedAt: cached?.fetched_at || null,
+      ...(DEMO ? { demo: true } : {}),
+    });
+  }
+
+  try {
+    const data = await pluggy(`/investments/${id}/transactions?pageSize=200`);
+    const txs = (data.results || []).sort((a, b) =>
+      String(b.tradeDate || b.date || "").localeCompare(String(a.tradeDate || a.date || ""))
+    );
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO investment_txs (investment_id, fetched_at, payload) VALUES (?, ?, ?)
+       ON CONFLICT(investment_id) DO UPDATE SET fetched_at=excluded.fetched_at, payload=excluded.payload`
+    ).run(id, now, JSON.stringify(txs));
+    res.json({ transactions: txs, cachedAt: now });
+  } catch (err) {
+    if (cached) {
+      return res.json({
+        transactions: JSON.parse(cached.payload),
+        cachedAt: cached.fetched_at,
+        stale: true,
+        error: String(err.message || err),
       });
     }
     res.status(502).json({ error: String(err.message || err) });
