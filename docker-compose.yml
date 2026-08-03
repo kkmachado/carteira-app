@@ -5,7 +5,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    env_file: .env
+    environment:
+      - PLUGGY_CLIENT_ID=${PLUGGY_CLIENT_ID}
+      - PLUGGY_CLIENT_SECRET=${PLUGGY_CLIENT_SECRET}
+      - PLUGGY_ITEM_ID=${PLUGGY_ITEM_ID}
+      - PORT=${PORT}
     volumes:
       - ./data:/app/data
     healthcheck:
