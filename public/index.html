@@ -66,7 +66,13 @@
   .fill { height:100%; border-radius:4px; background:var(--ink); }
   .fill.over { background:var(--red); }
   .issuer .val { font-family:'IBM Plex Mono',monospace; font-size:12px; width:80px; text-align:right; }
-  .asset { display:flex; align-items:flex-start; gap:10px; padding:11px 4px; border-top:1px solid var(--divider); }
+  .asset-row { border-top:1px solid var(--divider); }
+  .asset { display:flex; align-items:flex-start; gap:10px; padding:11px 4px; width:100%;
+           background:none; border:0; border-radius:8px; text-align:left; font:inherit; color:inherit; cursor:pointer; }
+  .asset:active { background:var(--track); }
+  .asset .chev { flex-shrink:0; color:var(--faint); align-self:center; transition:transform .18s; }
+  .asset .chev svg { display:block; width:16px; height:16px; }
+  .asset[aria-expanded="true"] .chev { transform:rotate(180deg); }
   .tag { font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:500; padding:3px 6px; border-radius:6px; white-space:nowrap; }
   .tag.sub { background:var(--track); color:var(--ink2); }
   /* cor do indexador vem de --c (inline): fundo é a própria cor esmaecida, então
@@ -113,6 +119,20 @@
   table.pt td.cat { font-family:'Archivo',system-ui,sans-serif; font-weight:600; font-size:12.5px; cursor:pointer; }
   table.pt tr.sub td { color:var(--mut); font-size:11px; }
   table.pt tr.sub td.cat { font-weight:400; font-size:11.5px; color:var(--ink); padding-left:18px; cursor:default; }
+  /* Detalhe do ativo (expansível) */
+  .detail { padding:2px 4px 14px; }
+  .dgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:11px 16px; }
+  @media(min-width:560px){ .dgrid { grid-template-columns:repeat(4,1fr); } }
+  .dgrid .l { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.09em; color:var(--mut); text-transform:uppercase; margin-bottom:3px; }
+  .dgrid .v { font-family:'IBM Plex Mono',monospace; font-size:13px; word-break:break-word; }
+  .dgrid .v small { font-size:10.5px; color:var(--mut); display:block; margin-top:2px; font-family:'Archivo',system-ui,sans-serif; }
+  .dsec { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.09em; color:var(--mut); text-transform:uppercase; margin:16px 0 7px; }
+  .mov { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 11px; border:1px solid var(--divider); border-radius:8px; margin-bottom:6px; }
+  .mov .t { font-size:12.5px; font-weight:600; }
+  .mov .d { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mut); margin-top:1px; }
+  .mov .a { font-family:'IBM Plex Mono',monospace; font-size:12.5px; white-space:nowrap; }
+  .dnote { font-size:11.5px; color:var(--mut); }
+  .dnote.err { color:var(--red); }
 </style>
 </head>
 <body>
@@ -279,7 +299,9 @@ const BENCH_COLOR = { cdi:'#0B6FEF', ipca:'#F97316', selic:'#9333EA', ibov:'#DB2
 const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo']];
 const state = { period:'ytd', bench:'cdi', grossup:true, assetSort:'valor' };
 let assetsCache = null;
-const expanded = new Set();
+const expanded = new Set();          // categorias abertas na tabela "Meus produtos"
+const expandedAssets = new Set();    // ativos com o detalhe aberto
+const txCache = {};                  // id → { loading } | { list, stale } | { error }
 let perf = null, invById = {};
 
 function chips(elId, items, sel, onPick) {
@@ -345,6 +367,7 @@ function renderPerf() {
 
   renderPerfChart();
   renderCatTable();
+  if (assetsCache) renderAssets(); // o detalhe do ativo mostra rentabilidade e segue o gross up
 }
 
 /* Valor do benchmark na data de cada snapshot: último ponto ≤ data (degrau).
@@ -503,6 +526,110 @@ async function load() {
   renderAssets(active);
 }
 
+/* ---------- Detalhe do ativo ----------
+   Painel que abre no toque da linha: números do ativo, rentabilidade por janela
+   (quando /api/performance respondeu) e as movimentações, buscadas sob demanda. */
+const MOV_LABEL = { BUY:'Aplicação', SELL:'Resgate', TRANSFER_IN:'Transferência recebida',
+  TRANSFER_OUT:'Transferência enviada', TAX:'Imposto', INTEREST:'Juros', AMORTIZATION:'Amortização' };
+/* Datas da Pluggy são dias de calendário, mas chegam com hora — ora T03:00Z (meia-noite
+   de Brasília), ora T00:00Z (que em SP cai no dia anterior). Formata a partir da parte
+   ISO da string, sem passar pelo fuso, senão a data escorrega um dia. */
+const dBR = iso => {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+};
+const NUM = (v, d=2) => Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+/* "5 anos e 3 meses", "8 meses", "vencido" — prazo até o vencimento */
+function prazo(dueDate) {
+  if (!dueDate) return '';
+  const meses = Math.round((new Date(dueDate) - Date.now()) / 2629800000);
+  if (meses <= 0) return 'vencido';
+  const anos = Math.floor(meses / 12), m = meses % 12;
+  const p = [];
+  if (anos) p.push(anos + (anos > 1 ? ' anos' : ' ano'));
+  if (m) p.push(m + (m > 1 ? ' meses' : ' mês'));
+  return 'faltam ' + p.join(' e ');
+}
+
+const dItem = (l, v, s) => `<div><div class="l">${l}</div><div class="v">${v}${s ? `<small>${s}</small>` : ''}</div></div>`;
+
+function movHTML(t) {
+  const label = MOV_LABEL[t.type] || t.type || 'Movimentação';
+  const valor = t.netAmount != null ? t.netAmount : t.amount;
+  const credito = t.movementType !== 'DEBIT';
+  // em CDB/LCA a Pluggy usa quantidade = reais a R$ 1,00: só mostra unidades quando
+  // o papel é realmente cotado por unidade (Tesouro, debênture)
+  const porUnidade = t.quantity != null && t.value != null && Math.abs(t.value - 1) > 0.005;
+  const qtd = porUnidade ? ` · ${NUM(t.quantity, 2)} un. a ${BRL2(t.value)}` : '';
+  return `<div class="mov">
+      <div><div class="t">${label}</div><div class="d">${dBR(t.tradeDate || t.date)}${qtd}</div></div>
+      <div class="a" style="color:var(${credito ? '--pre' : '--ipca'})">${valor == null ? '—' : BRL2(valor)}</div>
+    </div>`;
+}
+
+function detailHTML(a) {
+  const g = state.grossup;
+  const profit = a.amount - (a.amountOriginal || 0);
+  const itens = [
+    dItem('Saldo líquido', BRL2(a.balance), 'já sem o IR provisionado'),
+    dItem('Valor bruto', BRL2(a.amount)),
+    dItem('Aplicado', BRL2(a.amountOriginal || 0)),
+    dItem('Rendimento bruto', `<span style="color:var(${profit >= 0 ? '--pre' : '--red'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
+      a.amountOriginal ? NUM(profit / a.amountOriginal * 100) + '% sobre o aplicado' : ''),
+    dItem('IR provisionado', isento(a) ? 'isento' : BRL2((a.taxes || 0) + (a.taxes2 || 0))),
+    dItem('Taxa contratada', rateLabel(a)),
+    dItem('Aplicação', dBR(a.purchaseDate || a.issueDate)),
+    dItem('Vencimento', dBR(a.dueDate), prazo(a.dueDate)),
+  ];
+  if (a.quantity > 0 && a.value != null && Math.abs(a.value - 1) > 0.005)
+    itens.push(dItem('Posição', `${NUM(a.quantity, 2)} un.`, 'a ' + BRL2(a.value)));
+  if (a.issuer) itens.push(dItem('Emissor', a.issuer, a.issuerCNPJ || ''));
+  if (a.code || a.isin) itens.push(dItem('Código', a.code || a.isin, a.isin && a.code !== a.isin ? 'ISIN ' + a.isin : ''));
+
+  let html = `<div class="detail"><div class="dgrid">${itens.join('')}</div>`;
+
+  // rentabilidade do ativo nas mesmas janelas da tabela por categoria
+  const w = perf && perf.assets && perf.assets[a.id] && perf.assets[a.id].windows;
+  if (w) {
+    const cols = [['mesAtual','Mês'],['mesAnterior','Mês ant.'],['ano','Ano'],['m12','12m']];
+    html += `<div class="dsec">Rentabilidade ${g && isento(a) ? '(bruto equivalente)' : ''}</div>
+      <div class="dgrid">${cols.map(([k, l]) =>
+        dItem(l, w[k] ? PCT2(g ? w[k].accGrossUp : w[k].acc) : '—')).join('')}</div>`;
+  }
+
+  // movimentações: 'loading' até a resposta; a lista fica em txCache e sobrevive ao re-render
+  const tx = txCache[a.id];
+  html += '<div class="dsec">Movimentações</div>';
+  if (!tx || tx.loading) html += '<div class="dnote">carregando…</div>';
+  else if (tx.error) html += `<div class="dnote err">não foi possível carregar: ${tx.error}</div>`;
+  else if (!tx.list.length) html += '<div class="dnote">nenhuma movimentação registrada pela Pluggy</div>';
+  else html += tx.list.map(movHTML).join('') +
+    (tx.stale ? '<div class="dnote">Pluggy indisponível — movimentações do cache</div>' : '');
+
+  return html + '</div>';
+}
+
+async function loadTx(id) {
+  if (txCache[id]) return;
+  txCache[id] = { loading: true };
+  try {
+    const res = await fetch('/api/investments/' + encodeURIComponent(id) + '/transactions');
+    // servidor antigo (sem a rota) responde o 404 em HTML: a mensagem precisa dizer o que fazer
+    if (res.status === 404) {
+      txCache[id] = { error: 'reinicie o servidor (rota /api/investments ausente)' };
+      return renderAssets();
+    }
+    const j = await res.json();
+    txCache[id] = res.ok && !j.error
+      ? { list: j.transactions || [], stale: j.stale }
+      : { error: j.error || ('HTTP ' + res.status) };
+  } catch (e) {
+    txCache[id] = { error: String(e.message || e) };
+  }
+  renderAssets();
+}
+
 /* Lista de ativos. Ordenação por valor (saldo desc) ou por tipo (agrupa por
    subtype, e dentro do grupo pelo saldo). */
 function renderAssets(active) {
@@ -522,22 +649,35 @@ function renderAssets(active) {
   document.getElementById('assets').innerHTML = lista.map(a => {
     const profit = a.amount - (a.amountOriginal||0);
     const k = ix(a);
-    return `<div class="asset">
-      <div class="info">
-        <div class="tags">
-          <span class="tag ix" style="--c:var(${IX_VAR[k]})">${k}</span>
-          <span class="tag sub">${SUB[a.subtype]||a.subtype}</span>
-          ${isento(a)?'<span class="isento">isento IR</span>':''}
+    const open = expandedAssets.has(a.id);
+    return `<div class="asset-row">
+      <button class="asset" data-id="${a.id}" aria-expanded="${open}">
+        <div class="info">
+          <div class="tags">
+            <span class="tag ix" style="--c:var(${IX_VAR[k]})">${k}</span>
+            <span class="tag sub">${SUB[a.subtype]||a.subtype}</span>
+            ${isento(a)?'<span class="isento">isento IR</span>':''}
+          </div>
+          <div class="t">${issuerName(a)}</div>
+          <div class="d">${rateLabel(a)} · vence ${dBR(a.dueDate)}</div>
         </div>
-        <div class="t">${issuerName(a)}</div>
-        <div class="d">${rateLabel(a)} · vence ${new Date(a.dueDate).toLocaleDateString('pt-BR')}</div>
-      </div>
-      <div class="money">
-        <div class="b">${BRL2(a.balance)}</div>
-        <div class="p" style="color:var(${profit>=0?'--pre':'--red'})">${profit>=0?'+':''}${BRL(profit)}</div>
-      </div>
+        <div class="money">
+          <div class="b">${BRL2(a.balance)}</div>
+          <div class="p" style="color:var(${profit>=0?'--pre':'--red'})">${profit>=0?'+':''}${BRL(profit)}</div>
+        </div>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </button>
+      ${open ? detailHTML(a) : ''}
     </div>`;
   }).join('');
+
+  document.querySelectorAll('#assets .asset').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      if (expandedAssets.has(id)) expandedAssets.delete(id);
+      else { expandedAssets.add(id); loadTx(id); }
+      renderAssets();
+    }));
 }
 
 function draw(id, type, data, opts) {

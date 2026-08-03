@@ -127,6 +127,11 @@ db.exec(`
     total_gross REAL NOT NULL,
     payload TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS investment_txs (
+    investment_id TEXT PRIMARY KEY,
+    fetched_at TEXT NOT NULL,
+    payload TEXT NOT NULL
+  );
 `);
 initBenchmarks(db);
 
@@ -136,6 +141,34 @@ const stmt = db.prepare(
 db.transaction((rs) => {
   for (const r of rs) stmt.run(r.date, r.total_balance, r.total_original, r.total_gross, r.payload);
 })(linhas);
+
+/* Movimentações fictícias no formato da Pluggy, para o detalhe do ativo ter o que
+   mostrar na demo: a aplicação inicial, os aportes extras e o resgate total. */
+const stmtTx = db.prepare(
+  "INSERT INTO investment_txs (investment_id, fetched_at, payload) VALUES (?, ?, ?)"
+);
+const agora = new Date().toISOString();
+db.transaction(() => {
+  for (const a of ATIVOS) {
+    const movs = [
+      { id: `${a.id}-buy`, type: "BUY", movementType: "CREDIT", date: `${a.desde}T00:00:00.000Z`,
+        tradeDate: `${a.desde}T00:00:00.000Z`, amount: a.aplicado, netAmount: a.aplicado,
+        quantity: a.aplicado, value: 1, description: null },
+      ...APORTES_EXTRA.filter((x) => x.id === a.id).map((x) => ({
+        id: `${a.id}-buy-${x.data}`, type: "BUY", movementType: "CREDIT", date: `${x.data}T00:00:00.000Z`,
+        tradeDate: `${x.data}T00:00:00.000Z`, amount: x.valor, netAmount: x.valor,
+        quantity: x.valor, value: 1, description: null,
+      })),
+    ];
+    if (a.resgateEm) {
+      movs.push({ id: `${a.id}-sell`, type: "SELL", movementType: "DEBIT",
+        date: `${a.resgateEm}T00:00:00.000Z`, tradeDate: `${a.resgateEm}T00:00:00.000Z`,
+        amount: a.aplicado, netAmount: a.aplicado, quantity: a.aplicado, value: 1, description: null });
+    }
+    movs.sort((x, y) => y.tradeDate.localeCompare(x.tradeDate));
+    stmtTx.run(a.id, agora, JSON.stringify(movs));
+  }
+})();
 
 const primeira = linhas[0];
 const ultima = linhas[linhas.length - 1];

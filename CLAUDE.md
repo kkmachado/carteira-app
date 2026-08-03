@@ -32,6 +32,14 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - `rate` + `rateType` (`CDI` / `IPCA` / `null`) e `fixedAnnualRate` — taxa contratada (`rateType` null = prefixado)
 - `dueDate`, `issuer`, `subtype` (`CDB`, `LCA`, `LCI`, `TREASURY`, `DEBENTURES`)
 - `status` — considerar apenas `ACTIVE` nos totais (`TOTAL_WITHDRAWAL` = resgatado)
+- `quantity` / `value` — em CDB/LCA a Pluggy costuma usar quantidade = reais a R$ 1,00; só mostrar unidades quando `value` ≠ 1 (Tesouro, debênture, alguns CDBs)
+- Datas (`dueDate`, `issueDate`, `tradeDate`…) são dias de calendário com hora colada: ora `T03:00Z`, ora `T00:00Z`. Formatar pela parte ISO da string — passar por `new Date().toLocaleDateString` escorrega um dia nas que vêm em `T00:00Z`.
+
+## Detalhe do ativo
+
+- Toque na linha da lista "Ativos" abre um painel com os números do ativo, a rentabilidade por janela (de `/api/performance`) e as movimentações.
+- `GET /api/investments/:id/transactions` faz proxy de `/investments/{id}/transactions` da Pluggy, com cache na tabela `investment_txs` (TTL 12h) — a lista só muda quando há aporte ou resgate. Busca é sob demanda (só quando o painel abre); Pluggy fora devolve o cache com `stale: true`.
+- Nem todo ativo tem movimentações: a Pluggy devolve lista vazia para parte dos papéis.
 
 ## Benchmarks (SGS / Yahoo)
 
