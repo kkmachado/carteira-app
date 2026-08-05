@@ -2,7 +2,7 @@
 
 ## Propósito
 
-Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa brasileira de balcão: CDBs % do CDI, CDBs IPCA+, LCA, LCI, debênture, Tesouro Prefixado e IPCA+). Roda self-hosted no homelab Proxmox via Coolify e é usada como PWA instalada no iPhone, acessível **apenas na rede local**.
+Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa brasileira de balcão: CDBs % do CDI, CDBs IPCA+, LCA, LCI, debênture, Tesouro Prefixado e IPCA+). Roda self-hosted no homelab Proxmox via Docker (stack gerenciada pelo Portainer) e é usada como PWA instalada no iPhone, acessível **apenas na rede local**.
 
 ## Stack
 
@@ -15,7 +15,7 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 
 - **Credenciais só no `.env`** (`PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`, `PLUGGY_ITEM_ID`). Nunca commitar `.env` (está no `.gitignore` junto com `data/` e `node_modules/`).
 - **SQLite em `data/`** como volume persistente (`/app/data` no container).
-- **Deploy via Coolify** apontando para o repositório, build por Dockerfile, variáveis de ambiente pela UI do Coolify, volume em `/app/data`. Healthcheck em `GET /api/health`.
+- **Deploy via Docker/Portainer**: stack a partir do `docker-compose.yml` (build pelo Dockerfile), variáveis de ambiente pela UI do Portainer, dados em bind mount `./data` → `/app/data` no host. Healthcheck em `GET /api/health` (declarado no Dockerfile e no compose).
 - **Single-user, sem autenticação** por enquanto — o app só existe na rede local; não expor na internet.
 - A apiKey da Pluggy expira em 2h; `server.js` mantém cache com renovação automática (renova aos 110 min).
 - O item é do conector **MeuPluggy** (id 200): proxy da conexão original, atualizado **1x/dia** pela própria Pluggy (ver `nextAutoSyncAt` do item). `PATCH /items/{id}` é recusado com 400 `"MeuPluggy item cant be updated"` — não existe sync sob demanda pela API. Não existe rota de refresh: `/api/portfolio` devolve `sync` (`lastUpdatedAt`/`nextAutoSyncAt`/`status`) e o frontend exibe isso como linha passiva no cabeçalho. Forçar atualização só pelo portal meu.pluggy.ai.

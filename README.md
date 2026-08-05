@@ -28,7 +28,7 @@ O manifest faz o app abrir em tela cheia (standalone), sem barra do Safari.
 - `GET /api/performance?period=ytd|3m|6m|12m|24m|max` — rentabilidade (TWR), benchmarks e tabela por categoria/ativo
 - `GET /api/investments/:id/transactions` — movimentações do ativo (proxy da Pluggy, cache de 12h no SQLite)
 - `GET /api/benchmarks?from=YYYY-MM-DD` — séries CDI/IPCA/Selic (SGS Bacen) e IBOV (Yahoo), cacheadas no SQLite e atualizadas 1x/dia
-- `GET /api/health` — healthcheck (usado pelo Coolify/Docker; não chama a Pluggy)
+- `GET /api/health` — healthcheck (usado pelo Docker; não chama a Pluggy)
 
 Não existe rota de sync sob demanda: o item é do conector MeuPluggy, que a Pluggy
 atualiza sozinha 1x/dia e recusa `PATCH /items/{id}`. O frescor dos dados vem em

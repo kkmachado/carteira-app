@@ -391,7 +391,7 @@ app.get("/api/performance", async (req, res) => {
   }
 });
 
-// Healthcheck do Coolify: não depende da Pluggy
+// Healthcheck do Docker: não depende da Pluggy
 app.get("/api/health", (_req, res) => {
   const last = db.prepare("SELECT date, total_balance FROM snapshots ORDER BY date DESC LIMIT 1").get();
   res.json({ ok: true, uptime: Math.round(process.uptime()), lastSnapshot: last?.date || null });
