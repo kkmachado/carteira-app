@@ -34,7 +34,9 @@ Não existe rota de sync sob demanda: o item é do conector MeuPluggy, que a Plu
 atualiza sozinha 1x/dia e recusa `PATCH /items/{id}`. O frescor dos dados vem em
 `sync` no `/api/portfolio`; forçar atualização, só pelo portal meu.pluggy.ai.
 
-Snapshot automático diário às 12:00 (America/Sao_Paulo), depois do auto-sync da Pluggy.
+Coleta automática 2x/dia às 12:00 e 19:00 (America/Sao_Paulo): a primeira depois do
+auto-sync da Pluggy, a segunda depois do fechamento da B3 e das publicações
+vespertinas do SGS.
 O banco fica em `./data/carteira.db` (volume persistente).
 
 ## Observações

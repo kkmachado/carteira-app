@@ -20,7 +20,7 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - **Single-user, sem autenticação** por enquanto — o app só existe na rede local; não expor na internet.
 - A apiKey da Pluggy expira em 2h; `server.js` mantém cache com renovação automática (renova aos 110 min).
 - O item é do conector **MeuPluggy** (id 200): proxy da conexão original, atualizado **1x/dia** pela própria Pluggy (ver `nextAutoSyncAt` do item). `PATCH /items/{id}` é recusado com 400 `"MeuPluggy item cant be updated"` — não existe sync sob demanda pela API. Não existe rota de refresh: `/api/portfolio` devolve `sync` (`lastUpdatedAt`/`nextAutoSyncAt`/`status`) e o frontend exibe isso como linha passiva no cabeçalho. Forçar atualização só pelo portal meu.pluggy.ai.
-- Snapshot diário automático às 12:00 America/Sao_Paulo (cron), que também atualiza o cache de benchmarks. O horário é deliberado: fica **depois** do auto-sync do item na Pluggy (~11:13), senão o snapshot do dia guardaria a coleta do dia anterior.
+- Coleta automática **2x/dia** às 12:00 e 19:00 America/Sao_Paulo (cron), snapshot + cache de benchmarks. 12:00 é deliberado: fica **depois** do auto-sync do item na Pluggy (~11:13), senão o snapshot guardaria a coleta do dia anterior. 19:00 existe pelos **benchmarks**, não pela carteira (o item só sincroniza 1x/dia): o SGS publica parte das séries à tarde e a B3 fecha às 17h, então o IBOV das 12:00 é cotação com pregão aberto. Serve também de segunda chance para o snapshot se a Pluggy estiver fora ao meio-dia.
 - Se a Pluggy estiver fora, `/api/portfolio` responde com o último snapshot salvo (`stale: true`).
 
 ## Semântica dos campos da Pluggy (`/investments`)

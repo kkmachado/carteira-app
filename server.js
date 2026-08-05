@@ -414,20 +414,32 @@ app.get("/api/health", (_req, res) => {
    e a Pluggy recusa o PATCH ("MeuPluggy item cant be updated"). O frescor dos dados
    vem em `sync` no /api/portfolio. */
 
-/* ---------- Snapshot automático diário (12:00) ----------
-   Depois do auto-sync do item na Pluggy (~11:13, ciclo de 24h ancorado na última
-   coleta): assim o snapshot do dia reflete a coleta do próprio dia. */
-if (!DEMO) cron.schedule("0 12 * * *", async () => {
+/* ---------- Coleta automática (12:00 e 19:00) ----------
+   12:00 fica depois do auto-sync do item na Pluggy (~11:13, ciclo de 24h ancorado
+   na última coleta): é a passada que define o snapshot do dia.
+
+   19:00 existe pelos benchmarks, não pela carteira — o item só sincroniza 1x/dia,
+   então a carteira vem igual. O que muda à tarde: o SGS publica parte das séries
+   depois do meio-dia (a Selic sai à tarde) e a B3 só fecha às 17h, com leilão até
+   ~17:05 — o IBOV coletado ao meio-dia é cotação com pregão aberto, e às 19:00 já
+   é fechamento consolidado. De quebra, é uma segunda chance para o snapshot quando
+   a Pluggy está fora ao meio-dia; o upsert por data mantém um snapshot por dia. */
+async function coletaDiaria(hora) {
   try {
     const investments = await fetchInvestments();
     const snap = saveSnapshot(investments);
-    if (snap) console.log(`📸 Snapshot ${snap.date}: R$ ${snap.total_balance.toFixed(2)}`);
-    else console.error("Snapshot diário não gravado: lista de investimentos vazia");
+    if (snap) console.log(`📸 [${hora}] Snapshot ${snap.date}: R$ ${snap.total_balance.toFixed(2)}`);
+    else console.error(`[${hora}] Snapshot não gravado: lista de investimentos vazia`);
   } catch (err) {
-    console.error("Falha no snapshot diário:", err.message);
+    console.error(`[${hora}] Falha no snapshot:`, err.message);
   }
   const { errors } = await updateBenchmarks(db, { startISO: firstSnapshotDate() });
-  for (const [serie, msg] of Object.entries(errors)) console.error(`Falha ao atualizar ${serie}:`, msg);
-}, { timezone: "America/Sao_Paulo" });
+  for (const [serie, msg] of Object.entries(errors)) console.error(`[${hora}] Falha ao atualizar ${serie}:`, msg);
+}
+
+if (!DEMO) {
+  cron.schedule("0 12 * * *", () => coletaDiaria("12:00"), { timezone: "America/Sao_Paulo" });
+  cron.schedule("0 19 * * *", () => coletaDiaria("19:00"), { timezone: "America/Sao_Paulo" });
+}
 
 app.listen(PORT, () => console.log(`Carteira rodando em http://0.0.0.0:${PORT}`));
