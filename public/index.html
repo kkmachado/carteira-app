@@ -27,7 +27,7 @@
     --bg:#F2F1EB; --card:#FBFAF6; --border:#E2E0D6; --divider:#ECEAE0; --control-border:#D8D5C9; --track:#E9E7DD;
     --ink:#14261F; --ink2:#3E4A42; --mut:#6B7066; --faint:#8A8E82;
     --pre:#0F766E; --red:#B91C1C; --ipca:#B45309;
-    --ix-cdi:#2563EB; --ix-ipca:#B45309; --ix-pre:#0F766E;
+    --ix-cdi:#2563EB; --ix-ipca:#B45309; --ix-pre:#0F766E; --ix-man:#7C3AED;
     --invert-fg:#FBFAF6; --chart-grid:rgba(20,38,31,.08);
     --pre-bg:#0F766E14; --ipca-bg:#B4530914; --ipca-border:#B4530940; --red-bg:#B91C1C10; --red-border:#B91C1C40;
   }
@@ -35,7 +35,7 @@
     --bg:#12181A; --card:#1B2226; --border:#2A3236; --divider:#242C30; --control-border:#3A4347; --track:#242C30;
     --ink:#ECEAE2; --ink2:#C7CBC2; --mut:#8B948E; --faint:#6E7671;
     --pre:#2DD4BF; --red:#F87171; --ipca:#FB923C;
-    --ix-cdi:#60A5FA; --ix-ipca:#FB923C; --ix-pre:#2DD4BF;
+    --ix-cdi:#60A5FA; --ix-ipca:#FB923C; --ix-pre:#2DD4BF; --ix-man:#A78BFA;
     --invert-fg:#12181A; --chart-grid:rgba(255,255,255,.08);
     --pre-bg:#2DD4BF1F; --ipca-bg:#FB923C1F; --ipca-border:#FB923C4D; --red-bg:#F871711A; --red-border:#F871714D;
   }
@@ -93,9 +93,10 @@
   #syncNote { font-size:11.5px; color:var(--mut); margin:-8px 0 12px; line-height:1.5; }
   #syncNote b { font-weight:600; color:var(--ink2); }
   .stale { color:var(--red); }
-  #banner { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px; border:1px solid; }
-  #banner.warn { display:block; background:var(--ipca-bg); border-color:var(--ipca-border); color:var(--ipca); }
+  #banner, #manualNote { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px; border:1px solid; line-height:1.5; }
+  #banner.warn, #manualNote.warn { display:block; background:var(--ipca-bg); border-color:var(--ipca-border); color:var(--ipca); }
   #banner.err { display:block; background:var(--red-bg); border-color:var(--red-border); color:var(--red); }
+  #manualNote b { font-weight:700; }
   .bench-note { font-size:11px; color:var(--mut); text-align:center; margin-top:8px; }
   .skeleton { color:var(--mut); opacity:.5; }
   .chips { display:flex; gap:6px; flex-wrap:wrap; }
@@ -133,6 +134,22 @@
   .mov .a { font-family:'IBM Plex Mono',monospace; font-size:12.5px; white-space:nowrap; }
   .dnote { font-size:11.5px; color:var(--mut); }
   .dnote.err { color:var(--red); }
+  /* Marcação manual (previdência) */
+  .manual-tag { font-size:10px; font-weight:600; color:var(--ix-man); background:color-mix(in srgb, var(--ix-man) 14%, transparent); border-radius:5px; padding:1px 5px; margin-left:6px; }
+  .mform { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-top:9px; }
+  @media(min-width:560px){ .mform { grid-template-columns:repeat(3,1fr); } }
+  .mform label { display:block; font-size:10.5px; color:var(--mut); margin-bottom:3px; }
+  .mform input, .mform select {
+    width:100%; font:inherit; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px;
+    border:1px solid var(--control-border); border-radius:8px; background:var(--bg); color:var(--ink);
+  }
+  .mform .row { grid-column:1/-1; display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+  .btn.primary { background:var(--ink); color:var(--invert-fg); border-color:var(--ink); }
+  .btn.danger { color:var(--red); border-color:var(--red-border); }
+  .mark { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 11px; border:1px solid var(--divider); border-radius:8px; margin-bottom:6px; }
+  .mark .d { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--mut); }
+  .mark .a { font-family:'IBM Plex Mono',monospace; font-size:12.5px; }
+  .mark button { background:none; border:0; color:var(--faint); cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
 </style>
 </head>
 <body>
@@ -147,6 +164,8 @@
   <div id="syncNote"></div>
 
   <div id="banner"></div>
+
+  <div id="manualNote"></div>
 
   <div class="card">
     <div class="hero-bal">
@@ -189,7 +208,11 @@
 
   <div class="card"><h2>Vencimentos por ano</h2><canvas id="chDue"></canvas></div>
 
-  <div class="card"><h2>Concentração por emissor</h2><div id="issuers"></div></div>
+  <div class="card">
+    <h2>Concentração por emissor</h2>
+    <div id="issuers"></div>
+    <div class="bench-note" id="issuersNote"></div>
+  </div>
 
   <div class="card">
     <h2>Meus produtos</h2>
@@ -203,19 +226,30 @@
     </h2>
     <div id="status"></div>
     <div id="assets"></div>
+    <div style="border-top:1px solid var(--divider); padding-top:11px; margin-top:6px">
+      <div id="pendingManual"></div>
+      <button class="btn" id="addManualBtn">+ ativo manual</button>
+      <div id="newManualForm"></div>
+    </div>
   </div>
 
-  <footer>Saldo líquido já desconta impostos e taxas. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Coleta automática às 12:00 e 19:00.</footer>
+  <footer>Saldo líquido já desconta impostos e taxas. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Coleta automática às 12:00 e 19:00. Ativos marcados como <b>manual</b> (previdência) não vêm do Open Finance: o saldo é o da última marcação e fica fora do cálculo de rentabilidade da carteira.</footer>
 
 <script>
 const BRL  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const BRL2 = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
 const PCT  = v => v.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
-const IX_VAR = { 'CDI':'--ix-cdi', 'IPCA+':'--ix-ipca', 'Prefixado':'--ix-pre' };
-const SUB = { CDB:'CDB', LCA:'LCA', LCI:'LCI', TREASURY:'Tesouro', DEBENTURES:'Debênture', MULTIMARKET_FUND:'Fundo multimercado', STOCK_FUND:'Fundo de ações' };
-const ix = a => a.rateType === 'CDI' ? 'CDI' : a.rateType === 'IPCA' ? 'IPCA+' : 'Prefixado';
+const IX_VAR = { 'CDI':'--ix-cdi', 'IPCA+':'--ix-ipca', 'Prefixado':'--ix-pre', 'Sem indexador':'--ix-man' };
+const SUB = { CDB:'CDB', LCA:'LCA', LCI:'LCI', TREASURY:'Tesouro', DEBENTURES:'Debênture', MULTIMARKET_FUND:'Fundo multimercado', STOCK_FUND:'Fundo de ações', PENSION:'Previdência', OTHER:'Outros' };
+/* Ativo manual (previdência): não vem da Pluggy, o saldo é marcado à mão.
+   Não tem indexador, vencimento, taxa contratada nem IR provisionado — cada
+   lugar que assume esses campos precisa desviar, senão vira "NaN% a.a." e
+   "vence Invalid Date". */
+const manualA = a => a.source === 'manual';
+const ix = a => manualA(a) ? 'Sem indexador' : a.rateType === 'CDI' ? 'CDI' : a.rateType === 'IPCA' ? 'IPCA+' : 'Prefixado';
 const isento = a => a.subtype === 'LCA' || a.subtype === 'LCI';
 const rateLabel = a => {
+  if (manualA(a)) return 'marcado em ' + dBR(a.markedAt);
   const k = ix(a);
   if (k === 'CDI') return `${a.rate}% do CDI`;
   if (k === 'IPCA+') return `IPCA + ${Number(a.fixedAnnualRate || a.rate).toLocaleString('pt-BR',{maximumFractionDigits:2})}%`;
@@ -292,6 +326,9 @@ const PCT2 = v => (v >= 0 ? '+' : '') + (v*100).toLocaleString('pt-BR',{minimumF
    marcação (e um `<script>` executaria). Escapar é mais barato que confiar. */
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const issuerName = a => esc((a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$| S\/A$/i,''));
+/* Ativo manual tem nome próprio; o fallback "Tesouro Nacional" do issuerName só
+   faz sentido para papel da Pluggy sem emissor (Tesouro Direto). */
+const titleOf = a => manualA(a) ? esc(a.name) : issuerName(a);
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const PERIODS = [['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
 const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']];
@@ -393,9 +430,13 @@ function renderPerfChart() {
   // não vira linha em zero — isso se lê como "o índice não rendeu nada"
   const bSerie = perf.benchmarks[state.bench] || [];
   const semDado = !bSerie.length;
+  const mx = perf.manualExcluded;
   document.getElementById('perfRange').textContent =
     `${d(perf.from)} a ${d(perf.to)} · ${state.grossup ? 'com' : 'sem'} gross up` +
-    (semDado ? ` · sem dado de ${bench} no período` : '');
+    (semDado ? ` · sem dado de ${bench} no período` : '') +
+    // marcação esporádica vira degrau na série diária: fica fora do TWR e do hero,
+    // mas continua no patrimônio — dizer isso evita a leitura de que sumiu
+    (mx && mx.count ? ` · ${BRL(mx.balance)} de saldo manual fora do cálculo` : '');
   draw('chPerf','line',{
     labels: dates.map(d => new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
     datasets: [
@@ -425,13 +466,14 @@ function renderCatTable() {
   const fmt = w => w ? PCT2(g ? w.accGrossUp : w.acc) : '—';
   const rows = perf.categories.map((c, ci) => {
     const head = `<tr data-c="${ci}"><td class="cat">${SUB[c.subtype]||esc(c.subtype)}` +
-      `${c.isento ? '<span class="isento">' + (g ? 'bruto equiv.' : 'isento IR') + '</span>' : ''}</td>` +
+      `${c.isento ? '<span class="isento">' + (g ? 'bruto equiv.' : 'isento IR') + '</span>' : ''}` +
+      `${c.manual ? '<span class="manual-tag">manual</span>' : ''}</td>` +
       cols.map(k => `<td>${fmt(c.windows[k])}</td>`).join('') +
       `<td>${BRL(c.balance)}</td><td>${PCT(c.share*100)}</td></tr>`;
     const subs = (expanded.has(ci) ? c.assetIds : []).map(id => {
       const a = invById[id], w = perf.assets[id] && perf.assets[id].windows;
       if (!a || !w) return '';
-      return `<tr class="sub"><td class="cat">${issuerName(a)} · ${rateLabel(a)}</td>` +
+      return `<tr class="sub"><td class="cat">${titleOf(a)} · ${rateLabel(a)}</td>` +
         cols.map(k => `<td>${fmt(w[k])}</td>`).join('') +
         `<td>${BRL(a.balance)}</td><td></td></tr>`;
     }).join('');
@@ -445,7 +487,8 @@ function renderCatTable() {
       expanded.has(i) ? expanded.delete(i) : expanded.add(i);
       renderCatTable();
     }));
-  document.getElementById('catNote').textContent = 'rentabilidade TWR por janela · toque na categoria para ver os ativos';
+  document.getElementById('catNote').textContent = 'rentabilidade TWR por janela · toque na categoria para ver os ativos'
+    + (perf.categories.some(c => c.manual) ? ' · "manual" = saldo marcado à mão, a janela só rende no dia da marcação' : '');
 }
 
 document.getElementById('guToggle').addEventListener('change', (e) => {
@@ -457,9 +500,10 @@ applyTheme(document.documentElement.getAttribute('data-theme')); // ícone + def
 
 async function load() {
   document.getElementById('status').textContent = 'Carregando carteira…';
-  const [pRes, hRes] = await Promise.all([fetch('/api/portfolio'), fetch('/api/history')]);
+  const [pRes, hRes] = await Promise.all([fetch('/api/portfolio'), fetch('/api/history'), loadManual()]);
   const p = await pRes.json();
   const history = await hRes.json();
+  renderPendingManual();
   if (p.error && !p.investments) {
     banner('err', 'Erro ao consultar a Pluggy: ' + p.error);
     document.getElementById('status').textContent = '';
@@ -482,8 +526,12 @@ async function load() {
   const taxes = active.reduce((s,a)=>s+(a.taxes||0),0);
   const isentoBal = active.filter(isento).reduce((s,a)=>s+a.balance,0);
 
-  document.getElementById('syncDate').textContent = new Date(p.syncedAt).toLocaleDateString('pt-BR') + (p.stale ? ' (cache)' : '');
+  // dia dos NÚMEROS (a coleta da Pluggy), não o do relógio: depois da meia-noite e
+  // antes do auto-sync a carteira exibida ainda é a de ontem
+  document.getElementById('syncDate').textContent =
+    (p.dataDate ? dBR(p.dataDate) : new Date(p.syncedAt).toLocaleDateString('pt-BR')) + (p.stale ? ' (cache)' : '');
   document.getElementById('syncDate').className = p.stale ? 'stale' : '';
+  renderManualNote(active);
   document.getElementById('totalBal').textContent = BRL2(bal);
   document.getElementById('assetCount').textContent = `${active.length} ativos · já descontados impostos e taxas`;
   document.getElementById('kOriginal').textContent = BRL(orig);
@@ -517,24 +565,31 @@ async function load() {
     // quando generateLabels é customizado — sem isso, cai no preto padrão do canvas
     generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], fontColor:c.options.plugins.legend.labels.color, lineWidth:0 })) } } } });
 
-  /* Vencimentos por ano */
+  /* Vencimentos por ano — só papel com vencimento (previdência não tem: o resgate
+     é a qualquer tempo, e sem o filtro o ano viraria "NaN") */
   const byYear = {};
-  active.forEach(a => { const y = new Date(a.dueDate).getFullYear(); byYear[y]=(byYear[y]||0)+a.balance; });
+  active.filter(a => a.dueDate).forEach(a => { const y = new Date(a.dueDate).getFullYear(); byYear[y]=(byYear[y]||0)+a.balance; });
   draw('chDue','bar',{
     labels:Object.keys(byYear),
     datasets:[{ data:Object.values(byYear), backgroundColor:'var(--ink)', borderRadius:3 }]
   },{ plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
 
-  /* Emissores */
+  /* Emissores — o alerta vermelho é o teto do FGC, que não cobre previdência
+     (VGBL/PGBL são reservas da seguradora): ativo manual fica fora do card, e a
+     escala das barras usa só o que é coberto, senão a régua do limite mente. */
+  const fgc = active.filter(a => !manualA(a));
+  const fgcBal = fgc.reduce((s,a)=>s+(a.balance||0),0);
   const byIssuer = {};
-  active.forEach(a => { const n = a.issuer || 'Tesouro Nacional'; byIssuer[n]=(byIssuer[n]||0)+a.balance; });
+  fgc.forEach(a => { const n = a.issuer || 'Tesouro Nacional'; byIssuer[n]=(byIssuer[n]||0)+a.balance; });
   document.getElementById('issuers').innerHTML = Object.entries(byIssuer)
     .sort((a,b)=>b[1]-a[1])
     .map(([n,v])=>`<div class="issuer">
-        <span class="name">${n.replace(/ S\.?A\.?$| S\/A$/i,'')}</span>
-        <div class="track"><div class="fill ${v>250000?'over':''}" style="width:${v/bal*100}%"></div></div>
+        <span class="name">${esc(n.replace(/ S\.?A\.?$| S\/A$/i,''))}</span>
+        <div class="track"><div class="fill ${v>250000?'over':''}" style="width:${fgcBal>0?v/fgcBal*100:0}%"></div></div>
         <span class="val">${BRL(v)}</span>
       </div>`).join('');
+  document.getElementById('issuersNote').textContent =
+    active.length > fgc.length ? 'previdência fora: não é coberta pelo FGC' : '';
 
   renderAssets(active);
 }
@@ -581,7 +636,132 @@ function movHTML(t) {
     </div>`;
 }
 
+/* ---------- Ativos manuais (previdência) ----------
+   A Pluggy não tem previdência no modelo de investimentos (`type` só aceita
+   MUTUAL_FUND, SECURITY, EQUITY, FIXED_INCOME, ETF, COE, OTHER) e nenhum conector
+   do Itaú expõe o produto. O saldo é marcado à mão aqui e o backend carrega o
+   último valor conhecido para os snapshots seguintes. */
+let manualById = {};
+
+const hojeISO = () => new Date().toLocaleDateString('sv-SE', { timeZone:'America/Sao_Paulo' });
+
+/* Acima disso a marcação é velha o bastante para o saldo exibido já não valer
+   grande coisa — o app avisa no cabeçalho. */
+const MARCACAO_MAX_DIAS = 5;
+
+function diasDesde(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return Math.round((Date.parse(hojeISO()+'T12:00:00Z') - Date.parse(`${m[1]}-${m[2]}-${m[3]}T12:00:00Z`)) / 86400000);
+}
+
+/* "há 3 dias" / "hoje" — quanto a marcação já envelheceu */
+function desde(iso) {
+  const dias = diasDesde(iso);
+  if (dias == null) return '';
+  if (dias <= 0) return 'hoje';
+  return 'há ' + dias + (dias > 1 ? ' dias' : ' dia');
+}
+
+/* Aviso de marcação vencida: o saldo de um ativo manual só muda quando alguém
+   digita, então uma marcação parada há dias é um número velho sendo somado ao
+   patrimônio como se fosse atual. */
+function renderManualNote(active) {
+  const velhos = active
+    .filter(manualA)
+    .map(a => ({ a, dias: diasDesde(a.markedAt) }))
+    .filter(x => x.dias != null && x.dias > MARCACAO_MAX_DIAS)
+    .sort((x, y) => y.dias - x.dias);
+  const el = document.getElementById('manualNote');
+  if (!velhos.length) { el.className = ''; el.innerHTML = ''; return; }
+  el.className = 'warn';
+  el.innerHTML = velhos
+    .map(({ a, dias }) => `<b>${titleOf(a)}</b>: marcado em ${dBR(a.markedAt)} (há ${dias} dias) — atualize o saldo`)
+    .join('<br>');
+}
+
+/* Aceita "55.000,00", "55000.00" e "55000": com vírgula decimal o ponto é
+   separador de milhar; sem vírgula, o ponto é o decimal. */
+function parseBRL(s) {
+  const t = String(s).trim().replace(/[R$\s]/g, '');
+  if (!t) return NaN;
+  return parseFloat(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t);
+}
+
+async function loadManual() {
+  try {
+    const res = await fetch('/api/manual');
+    if (!res.ok) return;
+    const j = await res.json();
+    manualById = Object.fromEntries((j.assets || []).map(a => [a.id, a]));
+  } catch (e) {
+    console.warn('Ativos manuais indisponíveis:', e.message || e);
+  }
+}
+
+async function apiManual(url, opts, msgEl) {
+  if (msgEl) { msgEl.className = 'dnote'; msgEl.textContent = 'salvando…'; }
+  try {
+    const res = await fetch(url, opts);
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
+    return true;
+  } catch (e) {
+    if (msgEl) { msgEl.className = 'dnote err'; msgEl.textContent = String(e.message || e); }
+    return false;
+  }
+}
+
+function manualDetailHTML(a) {
+  const profit = a.amount - (a.amountOriginal || 0);
+  const marks = (manualById[a.id] || {}).values || [];
+  const itens = [
+    dItem('Saldo', BRL2(a.balance), 'valor da última marcação'),
+    dItem('Aplicado', BRL2(a.amountOriginal || 0), 'total aportado informado'),
+    dItem('Rendimento', `<span style="color:var(${profit >= 0 ? '--pre' : '--red'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
+      a.amountOriginal ? NUM(profit / a.amountOriginal * 100) + '% sobre o aplicado' : ''),
+    dItem('Última marcação', dBR(a.markedAt), desde(a.markedAt)),
+  ];
+  if (a.issuer) itens.push(dItem('Instituição', esc(a.issuer)));
+
+  let html = `<div class="detail"><div class="dgrid">${itens.join('')}</div>`;
+
+  const w = perf && perf.assets && perf.assets[a.id] && perf.assets[a.id].windows;
+  if (w) {
+    const cols = [['mesAtual','Mês'],['mesAnterior','Mês ant.'],['ano','Ano'],['m12','12m']];
+    html += `<div class="dsec">Rentabilidade</div>
+      <div class="dgrid">${cols.map(([k,l]) => dItem(l, w[k] ? PCT2(w[k].acc) : '—')).join('')}</div>
+      <div class="dnote" style="margin-top:7px">só varia nos dias em que houve marcação — fora do cálculo da carteira</div>`;
+  }
+
+  html += `<div class="dsec">Nova marcação</div>
+    <form class="mform" data-mark="${a.id}">
+      <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+      <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
+      <div><label>Total aplicado</label><input name="original" inputmode="decimal" placeholder="0,00" value="${a.amountOriginal ?? ''}" required /></div>
+      <div class="row">
+        <button class="btn primary" type="submit">Salvar marcação</button>
+        <span class="dnote" data-msg></span>
+      </div>
+    </form>`;
+
+  if (marks.length) {
+    html += `<div class="dsec">Marcações (${marks.length})</div>` + marks.slice(0, 12).map(m => `
+      <div class="mark">
+        <div class="d">${dBR(m.date)}</div>
+        <div class="a">${BRL2(m.balance)}<span style="color:var(--mut)"> · apl. ${BRL2(m.original)}</span></div>
+        <button data-del="${a.id}" data-date="${m.date}" aria-label="remover marcação de ${dBR(m.date)}">×</button>
+      </div>`).join('');
+  }
+
+  html += `<div class="dsec">Ativo</div>
+    <button class="btn danger" data-arch="${a.id}">tirar da carteira</button>
+    <div class="dnote" style="margin-top:6px">as marcações e o histórico já gravado ficam preservados</div>`;
+  return html + '</div>';
+}
+
 function detailHTML(a) {
+  if (manualA(a)) return manualDetailHTML(a);
   const g = state.grossup;
   const profit = a.amount - (a.amountOriginal || 0);
   const itens = [
@@ -672,9 +852,10 @@ function renderAssets(active) {
             <span class="tag ix" style="--c:var(${IX_VAR[k]})">${k}</span>
             <span class="tag sub">${SUB[a.subtype]||esc(a.subtype)}</span>
             ${isento(a)?'<span class="isento">isento IR</span>':''}
+            ${manualA(a)?'<span class="manual-tag">manual</span>':''}
           </div>
-          <div class="t">${issuerName(a)}</div>
-          <div class="d">${rateLabel(a)} · vence ${dBR(a.dueDate)}</div>
+          <div class="t">${titleOf(a)}</div>
+          <div class="d">${rateLabel(a)}${a.dueDate ? ' · vence ' + dBR(a.dueDate) : ''}</div>
         </div>
         <div class="money">
           <div class="b">${BRL2(a.balance)}</div>
@@ -690,9 +871,138 @@ function renderAssets(active) {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
       if (expandedAssets.has(id)) expandedAssets.delete(id);
-      else { expandedAssets.add(id); loadTx(id); }
+      // ativo manual não tem movimentações na Pluggy: o id nem passa na validação
+      // da rota, e a chamada só renderia um erro no painel
+      else { expandedAssets.add(id); if (!manualA(invById[id] || {})) loadTx(id); }
       renderAssets();
     }));
+
+  bindManualForms(document.getElementById('assets'));
+}
+
+/* Handlers dos formulários de ativo manual: vivem dentro do HTML re-renderizado
+   por renderAssets/renderPendingManual, então são religados a cada render.
+   `root` limita o escopo — sem isso, religar um bloco duplicaria os handlers do
+   outro e um submit gravaria a marcação duas vezes. */
+function bindManualForms(root) {
+  root.querySelectorAll('form[data-mark]').forEach(form =>
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = form.querySelector('[data-msg]');
+      const fd = new FormData(form);
+      const balance = parseBRL(fd.get('balance'));
+      const original = parseBRL(fd.get('original'));
+      if (!Number.isFinite(balance) || !Number.isFinite(original)) {
+        msg.className = 'dnote err';
+        msg.textContent = 'saldo e aplicado precisam ser números';
+        return;
+      }
+      const ok = await apiManual('/api/manual/' + encodeURIComponent(form.dataset.mark) + '/values', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: fd.get('date'), balance, original }),
+      }, msg);
+      if (ok) await refreshAfterManual();
+    }));
+
+  root.querySelectorAll('button[data-del]').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      if (!confirm('Remover a marcação de ' + dBR(btn.dataset.date) + '?')) return;
+      const ok = await apiManual('/api/manual/' + encodeURIComponent(btn.dataset.del) +
+        '/values/' + btn.dataset.date, { method: 'DELETE' });
+      if (ok) await refreshAfterManual();
+    }));
+
+  root.querySelectorAll('button[data-arch]').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      if (!confirm('Tirar este ativo da carteira? As marcações e o histórico já gravado ficam salvos.')) return;
+      const ok = await apiManual('/api/manual/' + encodeURIComponent(btn.dataset.arch), { method: 'DELETE' });
+      if (ok) { expandedAssets.delete(btn.dataset.arch); await refreshAfterManual(); }
+    }));
+}
+
+/* Uma marcação reescreve os snapshots a partir da data dela: patrimônio, KPIs e
+   rentabilidade mudam juntos, então recarrega tudo em vez de remendar a tela. */
+async function refreshAfterManual() {
+  await load(); // recarrega /api/manual, a carteira e a rentabilidade
+}
+
+document.getElementById('addManualBtn').addEventListener('click', () => {
+  const box = document.getElementById('newManualForm');
+  if (box.innerHTML) { box.innerHTML = ''; return; }
+  /* Criação já pede a primeira marcação: sem nenhum valor o ativo não entra na
+     carteira (não há saldo a carregar) e não teria onde ser aberto para receber
+     o primeiro lançamento. */
+  box.innerHTML = `
+    <form class="mform" id="newManual" style="margin-top:11px">
+      <div><label>Nome</label><input name="name" maxlength="80" placeholder="Previdência Itaú" required /></div>
+      <div><label>Instituição</label><input name="issuer" maxlength="80" placeholder="Itaú Vida e Previdência" /></div>
+      <div><label>Tipo</label><select name="subtype"><option value="PENSION">Previdência</option><option value="OTHER">Outros</option></select></div>
+      <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+      <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
+      <div><label>Total aplicado</label><input name="original" inputmode="decimal" placeholder="0,00" required /></div>
+      <div class="row">
+        <button class="btn primary" type="submit">Criar e marcar</button>
+        <span class="dnote" data-msg></span>
+      </div>
+    </form>`;
+  box.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const fd = new FormData(form);
+    const msg = form.querySelector('[data-msg]');
+    const balance = parseBRL(fd.get('balance'));
+    const original = parseBRL(fd.get('original'));
+    if (!Number.isFinite(balance) || !Number.isFinite(original)) {
+      msg.className = 'dnote err';
+      msg.textContent = 'saldo e aplicado precisam ser números';
+      return;
+    }
+    let created;
+    try {
+      const res = await fetch('/api/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fd.get('name'), issuer: fd.get('issuer'), subtype: fd.get('subtype') }),
+      });
+      created = await res.json();
+      if (!res.ok || created.error) throw new Error(created.error || ('HTTP ' + res.status));
+    } catch (err) {
+      msg.className = 'dnote err';
+      msg.textContent = String(err.message || err);
+      return;
+    }
+    const ok = await apiManual('/api/manual/' + encodeURIComponent(created.id) + '/values', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: fd.get('date'), balance, original }),
+    }, msg);
+    if (ok) box.innerHTML = '';
+    // mesmo se a marcação falhar, o ativo já existe: recarrega para ele aparecer
+    // na lista de pendentes, com formulário próprio
+    await refreshAfterManual();
+  });
+});
+
+/* Ativo manual criado mas ainda sem marcação: fica invisível na carteira (não tem
+   saldo), então precisa de um lugar próprio para receber o primeiro lançamento. */
+function renderPendingManual() {
+  const pend = Object.values(manualById).filter(a => !a.values.length);
+  const box = document.getElementById('pendingManual');
+  if (!pend.length) { box.innerHTML = ''; return; }
+  box.innerHTML = pend.map(a => `
+    <div class="dsec">${esc(a.name)} — sem marcação</div>
+    <form class="mform" data-mark="${a.id}">
+      <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+      <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
+      <div><label>Total aplicado</label><input name="original" inputmode="decimal" placeholder="0,00" required /></div>
+      <div class="row">
+        <button class="btn primary" type="submit">Salvar marcação</button>
+        <button class="btn danger" type="button" data-arch="${a.id}">descartar ativo</button>
+        <span class="dnote" data-msg></span>
+      </div>
+    </form>`).join('');
+  bindManualForms(box);
 }
 
 function draw(id, type, data, opts) {

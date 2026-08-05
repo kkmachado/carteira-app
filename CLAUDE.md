@@ -22,6 +22,8 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - O item é do conector **MeuPluggy** (id 200): proxy da conexão original, atualizado **1x/dia** pela própria Pluggy (ver `nextAutoSyncAt` do item). `PATCH /items/{id}` é recusado com 400 `"MeuPluggy item cant be updated"` — não existe sync sob demanda pela API. Não existe rota de refresh: `/api/portfolio` devolve `sync` (`lastUpdatedAt`/`nextAutoSyncAt`/`status`) e o frontend exibe isso como linha passiva no cabeçalho. Forçar atualização só pelo portal meu.pluggy.ai.
 - Coleta automática **2x/dia** às 12:00 e 19:00 America/Sao_Paulo (cron), snapshot + cache de benchmarks. 12:00 é deliberado: fica **depois** do auto-sync do item na Pluggy (~11:13), senão o snapshot guardaria a coleta do dia anterior. 19:00 existe pelos **benchmarks**, não pela carteira (o item só sincroniza 1x/dia): o SGS publica parte das séries à tarde e a B3 fecha às 17h, então o IBOV das 12:00 é cotação com pregão aberto. Serve também de segunda chance para o snapshot se a Pluggy estiver fora ao meio-dia.
 - Se a Pluggy estiver fora, `/api/portfolio` responde com o último snapshot salvo (`stale: true`).
+- **Snapshot é datado pela coleta da Pluggy (`item.lastUpdatedAt`), não pelo relógio** (`snapshotDateFor`). Entre a meia-noite e o auto-sync (~11:13) a carteira devolvida ainda é a de ontem: datando pelo relógio, abrir o app de madrugada criava um snapshot do dia novo com os números da véspera — ponto a mais no gráfico, dia de rendimento zero no TWR. Agora essa abertura só reescreve o snapshot da véspera. O cabeçalho mostra `dataDate` (o dia dos números), não o dia da consulta.
+- Como consequência, snapshot com data **depois** da última coleta não pode ter dado próprio: `saveSnapshot` apaga essas linhas (herança da datagem por relógio). Só remove o que está à frente da coleta atual — passado não é reescrito, e as marcações manuais sobrevivem em `manual_values`.
 
 ## Semântica dos campos da Pluggy (`/investments`)
 
@@ -42,6 +44,20 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - Toque na linha da lista "Ativos" abre um painel com os números do ativo, a rentabilidade por janela (de `/api/performance`) e as movimentações.
 - `GET /api/investments/:id/transactions` faz proxy de `/investments/{id}/transactions` da Pluggy, com cache na tabela `investment_txs` (TTL 12h) — a lista só muda quando há aporte ou resgate. Busca é sob demanda (só quando o painel abre); Pluggy fora devolve o cache com `stale: true`.
 - Nem todo ativo tem movimentações: a Pluggy devolve lista vazia para parte dos papéis.
+
+## Ativos manuais / previdência
+
+- **A Pluggy não representa previdência.** `GET /investments?type=PENSION` responde 400: `type` só aceita `MUTUAL_FUND, SECURITY, EQUITY, FIXED_INCOME, ETF, COE, OTHER`. Não é limitação do MeuPluggy — o conector Itaú nativo (id 601) também não tem produto de seguros/previdência em `products`, então trocar de item não resolve. Previdência é Open Insurance, fase que a Pluggy não cobre.
+- Saída: **marcação manual**. Tabelas `manual_assets` (id `manual:<slug>`, nome, instituição, subtype `PENSION`/`OTHER`) e `manual_values` (uma linha por marcação: data, saldo, total aplicado).
+- Os manuais entram no **payload do snapshot** no formato da Pluggy, com `source: "manual"` — `/api/history`, os KPIs e a lista de ativos herdam a previdência sem contrato novo; quem precisa separar filtra pela flag.
+- **Carry-forward**: numa data vale a marcação mais recente com `date ≤ ref`. Antes da primeira marcação o ativo não existe — não se extrapola passado.
+- Toda marcação dispara `rebuildManualInSnapshots(date)`, que reescreve a parte manual dos snapshots dali em diante (os ativos da Pluggy não são tocados). Sem isso a previdência apareceria só no dia em que foi digitada e o patrimônio daria um degrau falso.
+- **Fora das séries diárias de rentabilidade** (hero, TWR, barras mensais): entre duas marcações o valor fica parado e salta de uma vez, o que viraria semanas de rendimento caindo num dia. `/api/performance` filtra `source: "manual"` dessas séries e devolve `manualExcluded` para a tela dizer isso. Continuam na tabela por categoria (janelas são intervalos, não dias, e o acumulado do intervalo está certo) e no patrimônio.
+- `amount = balance` e `taxes: null`: previdência não tem IR provisionado como CDB (a tributação incide no resgate).
+- Ficam **fora do card de emissores**: o alerta vermelho é o teto do FGC, que não cobre VGBL/PGBL.
+- Remover é **arquivar** (`archived_at`), não apagar: o histórico já gravado nos snapshots continua de pé. Recriar com o mesmo nome **reativa** o ativo e devolve as marcações — o id vem do nome, então recusar queimaria o nome para sempre.
+- Marcação parada há mais de **5 dias** (`MARCACAO_MAX_DIAS` no frontend) vira aviso âmbar no cabeçalho: o saldo só muda quando alguém digita, então um número velho estaria entrando no patrimônio como se fosse atual.
+- `GET /investments/:id/transactions` recusa id manual por validação de formato; o frontend nem chama.
 
 ## Benchmarks (SGS / Yahoo)
 
