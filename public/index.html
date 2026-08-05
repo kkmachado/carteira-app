@@ -729,12 +729,38 @@ function flashMarcacao(resp) {
   }
 }
 
+/* Os dois formulários do painel. Saldo e aporte são coisas diferentes: o saldo é
+   uma foto (muda sozinho, você só relê), o aporte é um evento com data própria.
+   Separados, a marcação mensal não repete nem recalcula o total aplicado — que
+   passou a ser a soma dos aportes — e o dinheiro novo cai no dia em que entrou,
+   não no dia em que alguém abriu o app para conferir. */
+const formSaldo = (id) => `
+  <form class="mform" data-mark="${id}">
+    <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+    <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
+    <div class="row">
+      <button class="btn primary" type="submit">Salvar saldo</button>
+      <span class="dnote" data-msg></span>
+    </div>
+  </form>`;
+
+const formAporte = (id, label = 'Registrar aporte') => `
+  <form class="mform" data-flow="${id}">
+    <div><label>Data do aporte</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+    <div><label>Valor</label><input name="amount" inputmode="decimal" placeholder="1.000,00" required /></div>
+    <div class="row">
+      <button class="btn primary" type="submit">${label}</button>
+      <span class="dnote" data-msg></span>
+    </div>
+  </form>`;
+
 function manualDetailHTML(a) {
   const profit = a.amount - (a.amountOriginal || 0);
   const marks = (manualById[a.id] || {}).values || [];
+  const flows = (manualById[a.id] || {}).flows || [];
   const itens = [
     dItem('Saldo', BRL2(a.balance), 'valor da última marcação'),
-    dItem('Aplicado', BRL2(a.amountOriginal || 0), 'total aportado informado'),
+    dItem('Aplicado', BRL2(a.amountOriginal || 0), `soma de ${flows.length} aporte${flows.length === 1 ? '' : 's'}`),
     dItem('Rendimento', `<span style="color:var(${profit >= 0 ? '--pre' : '--red'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
       a.amountOriginal ? NUM(profit / a.amountOriginal * 100) + '% sobre o aplicado' : ''),
     dItem('Última marcação', dBR(a.markedAt), desde(a.markedAt)),
@@ -751,23 +777,29 @@ function manualDetailHTML(a) {
       <div class="dnote" style="margin-top:7px">só varia nos dias em que houve marcação — fora do cálculo da carteira</div>`;
   }
 
-  html += `<div class="dsec">Nova marcação</div>
-    <form class="mform" data-mark="${a.id}">
-      <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
-      <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
-      <div><label>Total aplicado</label><input name="original" inputmode="decimal" placeholder="0,00" value="${a.amountOriginal ?? ''}" required /></div>
-      <div class="row">
-        <button class="btn primary" type="submit">Salvar marcação</button>
-        <span class="dnote" data-msg></span>
-      </div>
-    </form>`;
+  html += `<div class="dsec">Atualizar saldo</div>
+    ${formSaldo(a.id)}
+    <div class="dnote" style="margin-top:6px">só o saldo — o aplicado é a soma dos aportes</div>`;
+
+  html += `<div class="dsec">Registrar aporte</div>
+    ${formAporte(a.id)}
+    <div class="dnote" style="margin-top:6px">valor negativo lança um resgate</div>`;
 
   if (marks.length) {
-    html += `<div class="dsec">Marcações (${marks.length})</div>` + marks.slice(0, 12).map(m => `
+    html += `<div class="dsec">Marcações de saldo (${marks.length})</div>` + marks.slice(0, 12).map(m => `
       <div class="mark">
         <div class="d">${dBR(m.date)}</div>
-        <div class="a">${BRL2(m.balance)}<span style="color:var(--mut)"> · apl. ${BRL2(m.original)}</span></div>
+        <div class="a">${BRL2(m.balance)}</div>
         <button data-del="${a.id}" data-date="${m.date}" aria-label="remover marcação de ${dBR(m.date)}">×</button>
+      </div>`).join('');
+  }
+
+  if (flows.length) {
+    html += `<div class="dsec">Aportes e resgates (${flows.length})</div>` + flows.slice(0, 24).map(f => `
+      <div class="mark">
+        <div class="d">${dBR(f.date)}</div>
+        <div class="a" style="color:var(${f.amount >= 0 ? '--pre' : '--ipca'})">${f.amount >= 0 ? '+' : ''}${BRL2(f.amount)}</div>
+        <button data-delflow="${a.id}" data-flow-id="${f.id}" aria-label="remover aporte de ${dBR(f.date)}">×</button>
       </div>`).join('');
   }
 
@@ -897,29 +929,40 @@ function renderAssets(active) {
   bindManualForms(document.getElementById('assets'));
 }
 
+/* Saldo e aporte têm a mesma mecânica de envio (data + valor), só mudam a rota e
+   o nome do campo. */
+async function enviarLancamento(form, assetId, rota, campo, erro) {
+  const msg = form.querySelector('[data-msg]');
+  const fd = new FormData(form);
+  const valor = parseBRL(fd.get(campo));
+  if (!Number.isFinite(valor)) {
+    msg.className = 'dnote err';
+    msg.textContent = erro;
+    return;
+  }
+  const resp = await apiManual('/api/manual/' + encodeURIComponent(assetId) + '/' + rota, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date: fd.get('date'), [campo]: valor }),
+  }, msg);
+  if (resp) { flashMarcacao(resp); await refreshAfterManual(); }
+}
+
 /* Handlers dos formulários de ativo manual: vivem dentro do HTML re-renderizado
    por renderAssets/renderPendingManual, então são religados a cada render.
    `root` limita o escopo — sem isso, religar um bloco duplicaria os handlers do
    outro e um submit gravaria a marcação duas vezes. */
 function bindManualForms(root) {
   root.querySelectorAll('form[data-mark]').forEach(form =>
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const msg = form.querySelector('[data-msg]');
-      const fd = new FormData(form);
-      const balance = parseBRL(fd.get('balance'));
-      const original = parseBRL(fd.get('original'));
-      if (!Number.isFinite(balance) || !Number.isFinite(original)) {
-        msg.className = 'dnote err';
-        msg.textContent = 'saldo e aplicado precisam ser números';
-        return;
-      }
-      const resp = await apiManual('/api/manual/' + encodeURIComponent(form.dataset.mark) + '/values', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: fd.get('date'), balance, original }),
-      }, msg);
-      if (resp) { flashMarcacao(resp); await refreshAfterManual(); }
+      enviarLancamento(form, form.dataset.mark, 'values', 'balance', 'o saldo precisa ser um número');
+    }));
+
+  root.querySelectorAll('form[data-flow]').forEach(form =>
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      enviarLancamento(form, form.dataset.flow, 'flows', 'amount', 'o valor do aporte precisa ser um número');
     }));
 
   root.querySelectorAll('button[data-del]').forEach(btn =>
@@ -927,6 +970,14 @@ function bindManualForms(root) {
       if (!confirm('Remover a marcação de ' + dBR(btn.dataset.date) + '?')) return;
       const ok = await apiManual('/api/manual/' + encodeURIComponent(btn.dataset.del) +
         '/values/' + btn.dataset.date, { method: 'DELETE' });
+      if (ok) await refreshAfterManual();
+    }));
+
+  root.querySelectorAll('button[data-delflow]').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      if (!confirm('Remover este aporte? O total aplicado é recalculado.')) return;
+      const ok = await apiManual('/api/manual/' + encodeURIComponent(btn.dataset.delflow) +
+        '/flows/' + encodeURIComponent(btn.dataset.flowId), { method: 'DELETE' });
       if (ok) await refreshAfterManual();
     }));
 
@@ -957,10 +1008,10 @@ document.getElementById('addManualBtn').addEventListener('click', () => {
       <div><label>Tipo</label><select name="subtype"><option value="PENSION">Previdência</option><option value="OTHER">Outros</option></select></div>
       <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
       <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
-      <div><label>Total aplicado</label><input name="original" inputmode="decimal" placeholder="0,00" required /></div>
+      <div><label>Aporte inicial</label><input name="amount" inputmode="decimal" placeholder="0,00" required /></div>
       <div class="row">
-        <button class="btn primary" type="submit">Criar e marcar</button>
-        <span class="dnote" data-msg></span>
+        <button class="btn primary" type="submit">Criar</button>
+        <span class="dnote" data-msg>aporte inicial = quanto já aplicou até aqui; sem esse número, use o próprio saldo</span>
       </div>
     </form>`;
   box.querySelector('form').addEventListener('submit', async (e) => {
@@ -969,10 +1020,10 @@ document.getElementById('addManualBtn').addEventListener('click', () => {
     const fd = new FormData(form);
     const msg = form.querySelector('[data-msg]');
     const balance = parseBRL(fd.get('balance'));
-    const original = parseBRL(fd.get('original'));
-    if (!Number.isFinite(balance) || !Number.isFinite(original)) {
+    const amount = parseBRL(fd.get('amount'));
+    if (!Number.isFinite(balance) || !Number.isFinite(amount)) {
       msg.className = 'dnote err';
-      msg.textContent = 'saldo e aplicado precisam ser números';
+      msg.textContent = 'saldo e aporte inicial precisam ser números';
       return;
     }
     let created;
@@ -989,36 +1040,38 @@ document.getElementById('addManualBtn').addEventListener('click', () => {
       msg.textContent = String(err.message || err);
       return;
     }
-    const resp = await apiManual('/api/manual/' + encodeURIComponent(created.id) + '/values', {
+    const url = '/api/manual/' + encodeURIComponent(created.id);
+    const post = (rota, body) => apiManual(url + '/' + rota, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: fd.get('date'), balance, original }),
+      body: JSON.stringify({ date: fd.get('date'), ...body }),
     }, msg);
-    if (resp) { flashMarcacao(resp); box.innerHTML = ''; }
-    // mesmo se a marcação falhar, o ativo já existe: recarrega para ele aparecer
-    // na lista de pendentes, com formulário próprio
+    const resp = await post('values', { balance });
+    if (resp && await post('flows', { amount })) { flashMarcacao(resp); box.innerHTML = ''; }
+    // mesmo se um dos lançamentos falhar, o ativo já existe: recarrega para ele
+    // aparecer na lista de pendentes, com formulário próprio
     await refreshAfterManual();
   });
 });
 
-/* Ativo manual criado mas ainda sem marcação: fica invisível na carteira (não tem
-   saldo), então precisa de um lugar próprio para receber o primeiro lançamento. */
+/* Ativo manual incompleto precisa de um lugar próprio para ser fechado:
+   - sem saldo, fica invisível na carteira (não há valor a carregar) e não teria
+     onde ser aberto para receber o primeiro lançamento;
+   - sem aporte, aparece com aplicado zero e o saldo inteiro contado como
+     rendimento — acontece se o segundo POST da criação falhar. */
 function renderPendingManual() {
-  const pend = Object.values(manualById).filter(a => !a.values.length);
+  const pend = Object.values(manualById).filter(a => !a.values.length || !a.flows.length);
   const box = document.getElementById('pendingManual');
   if (!pend.length) { box.innerHTML = ''; return; }
-  box.innerHTML = pend.map(a => `
-    <div class="dsec">${esc(a.name)} — sem marcação</div>
-    <form class="mform" data-mark="${a.id}">
-      <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
-      <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
-      <div><label>Total aplicado</label><input name="original" inputmode="decimal" placeholder="0,00" required /></div>
-      <div class="row">
-        <button class="btn primary" type="submit">Salvar marcação</button>
+  box.innerHTML = pend.map(a => {
+    const falta = !a.values.length ? 'sem saldo' : 'sem aporte';
+    return `<div class="dsec">${esc(a.name)} — ${falta}</div>
+      ${!a.values.length ? formSaldo(a.id) : ''}
+      ${!a.flows.length ? formAporte(a.id, 'Salvar aporte inicial') : ''}
+      <div style="margin-top:9px">
         <button class="btn danger" type="button" data-arch="${a.id}">descartar ativo</button>
-        <span class="dnote" data-msg></span>
-      </div>
-    </form>`).join('');
+      </div>`;
+  }).join('');
   bindManualForms(box);
 }
 

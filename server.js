@@ -58,11 +58,56 @@ db.exec(`
     asset_id TEXT NOT NULL,
     date TEXT NOT NULL,              -- data de referência da marcação (YYYY-MM-DD)
     balance REAL NOT NULL,           -- saldo lido no app da instituição
-    original REAL NOT NULL,          -- total aportado até a data
     PRIMARY KEY (asset_id, date)
   );
+  CREATE TABLE IF NOT EXISTS manual_flows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id TEXT NOT NULL,
+    date TEXT NOT NULL,              -- data do aporte/resgate (YYYY-MM-DD)
+    amount REAL NOT NULL             -- positivo = aporte, negativo = resgate
+  );
+  CREATE INDEX IF NOT EXISTS idx_manual_flows ON manual_flows (asset_id, date);
 `);
+migrateManualFlows();
 initBenchmarks(db);
+
+/* Saldo e aporte eram o mesmo registro: cada marcação repetia o total aportado
+   acumulado, que o usuário tinha que recalcular somando o aporte do mês na mão.
+   Aporte virou evento próprio (`manual_flows`), com data independente da data em
+   que se olha o saldo, e o total aplicado passa a ser a soma dos aportes até a
+   data. A conversão é exata: o aporte de cada marcação é a diferença do
+   `original` para a marcação anterior do mesmo ativo. A coluna antiga sai depois
+   de convertida, para não ficar um número obsoleto ao lado do derivado. */
+function migrateManualFlows() {
+  const temColuna = db
+    .prepare("SELECT COUNT(*) AS c FROM pragma_table_info('manual_values') WHERE name = 'original'")
+    .get().c;
+  if (!temColuna) return;
+
+  const rows = db
+    .prepare("SELECT asset_id, date, original FROM manual_values ORDER BY asset_id, date")
+    .all();
+  const ins = db.prepare("INSERT INTO manual_flows (asset_id, date, amount) VALUES (?, ?, ?)");
+  let n = 0;
+  db.transaction(() => {
+    let asset = null;
+    let acumulado = 0;
+    for (const r of rows) {
+      if (r.asset_id !== asset) {
+        asset = r.asset_id;
+        acumulado = 0;
+      }
+      const delta = (r.original || 0) - acumulado;
+      acumulado = r.original || 0;
+      if (Math.abs(delta) > 0.005) {
+        ins.run(r.asset_id, r.date, delta);
+        n++;
+      }
+    }
+    db.exec("ALTER TABLE manual_values DROP COLUMN original");
+  })();
+  console.log(`✅ Aportes manuais convertidos: ${n} lançamento(s) a partir de ${rows.length} marcação(ões)`);
+}
 
 /* Dia corrente em São Paulo. `toISOString()` daria o dia UTC, que a partir das 21h
    (BRT) já virou: o snapshot da noite nasceria datado de amanhã e o gráfico
@@ -190,15 +235,28 @@ const manualRow = (id) =>
 
 /* Marcação vigente numa data: a mais recente com date ≤ ref (carry-forward do
    último valor conhecido, como o app já faz com a Pluggy fora). Antes da primeira
-   marcação o ativo simplesmente não existe — não se inventa passado. */
+   marcação o ativo simplesmente não existe — não se inventa passado.
+
+   O total aplicado NÃO é digitado: é a soma dos aportes até a data. Assim a
+   marcação mensal só informa o saldo, e o aporte tem data própria — o que também
+   deixa o aporte cair no dia certo no cálculo de fluxo, em vez de no dia em que
+   alguém abriu o app para conferir o saldo. */
 function manualInvestments(refISO) {
   const assets = db
     .prepare("SELECT * FROM manual_assets WHERE archived_at IS NULL ORDER BY name")
     .all();
   const vigente = db.prepare(
-    "SELECT date, balance, original FROM manual_values WHERE asset_id = ? AND date <= ? ORDER BY date DESC LIMIT 1"
+    "SELECT date, balance FROM manual_values WHERE asset_id = ? AND date <= ? ORDER BY date DESC LIMIT 1"
   );
-  const primeira = db.prepare("SELECT MIN(date) AS d FROM manual_values WHERE asset_id = ?");
+  const aplicado = db.prepare(
+    "SELECT COALESCE(SUM(amount), 0) AS total FROM manual_flows WHERE asset_id = ? AND date <= ?"
+  );
+  const primeira = db.prepare(
+    `SELECT MIN(d) AS d FROM (
+       SELECT MIN(date) AS d FROM manual_values WHERE asset_id = ?
+       UNION ALL SELECT MIN(date) FROM manual_flows WHERE asset_id = ?
+     )`
+  );
   const out = [];
   for (const asset of assets) {
     const v = vigente.get(asset.id, refISO);
@@ -214,7 +272,7 @@ function manualInvestments(refISO) {
       // previdência não tem IR provisionado como os CDBs (a tributação incide no
       // resgate): bruto = líquido é mais honesto que inventar uma provisão
       amount: v.balance,
-      amountOriginal: v.original,
+      amountOriginal: aplicado.get(asset.id, refISO).total,
       amountProfit: null,
       taxes: null,
       taxes2: null,
@@ -222,7 +280,7 @@ function manualInvestments(refISO) {
       rateType: null,
       fixedAnnualRate: null,
       dueDate: null,
-      issueDate: primeira.get(asset.id).d,
+      issueDate: primeira.get(asset.id, asset.id).d,
       source: "manual",
       markedAt: v.date,
     });
@@ -391,7 +449,10 @@ app.get("/api/manual", (_req, res) => {
     .prepare("SELECT * FROM manual_assets WHERE archived_at IS NULL ORDER BY name")
     .all();
   const values = db.prepare(
-    "SELECT date, balance, original FROM manual_values WHERE asset_id = ? ORDER BY date DESC"
+    "SELECT date, balance FROM manual_values WHERE asset_id = ? ORDER BY date DESC"
+  );
+  const flows = db.prepare(
+    "SELECT id, date, amount FROM manual_flows WHERE asset_id = ? ORDER BY date DESC, id DESC"
   );
   res.json({
     assets: assets.map((a) => ({
@@ -400,6 +461,7 @@ app.get("/api/manual", (_req, res) => {
       issuer: a.issuer,
       subtype: a.subtype,
       values: values.all(a.id),
+      flows: flows.all(a.id),
     })),
   });
 });
@@ -428,34 +490,45 @@ app.post("/api/manual", (req, res) => {
     ).run(id, name, issuer, subtype, new Date().toISOString());
   }
   const values = db
-    .prepare("SELECT date, balance, original FROM manual_values WHERE asset_id = ? ORDER BY date DESC")
+    .prepare("SELECT date, balance FROM manual_values WHERE asset_id = ? ORDER BY date DESC")
+    .all(id);
+  const flows = db
+    .prepare("SELECT id, date, amount FROM manual_flows WHERE asset_id = ? ORDER BY date DESC, id DESC")
     .all(id);
   // reativação traz marcações de volta: os snapshots a partir da 1ª precisam refletir
-  if (values.length) rebuildManualInSnapshots(values[values.length - 1].date);
-  res.json({ id, name, issuer, subtype, values });
+  const desde = [...values, ...flows].map((r) => r.date).sort()[0];
+  if (desde) rebuildManualInSnapshots(desde);
+  res.json({ id, name, issuer, subtype, values, flows });
 });
 
-/* Nova marcação. Data no futuro é recusada: o carry-forward passaria a valer para
-   snapshots que ainda não existem e o valor "vazaria" para trás no rebuild. */
+/* Valida data e valor de um lançamento manual. Data no futuro é recusada: o
+   carry-forward passaria a valer para snapshots que ainda não existem e o valor
+   "vazaria" para trás no rebuild. */
+function lancamento(req, { permiteNegativo = false } = {}) {
+  const date = String(req.body?.date || "").slice(0, 10);
+  const valor = num(req.body?.balance ?? req.body?.amount);
+  if (!isISODate(date)) return { error: "data inválida (use AAAA-MM-DD)" };
+  if (date > todaySP()) return { error: "data no futuro" };
+  if (valor == null) return { error: "valor inválido" };
+  if (!permiteNegativo && valor < 0) return { error: "valor não pode ser negativo" };
+  if (permiteNegativo && valor === 0) return { error: "valor não pode ser zero" };
+  return { date, valor };
+}
+
+/* Marcação de saldo. Só o saldo: o total aplicado vem dos aportes. */
 app.post("/api/manual/:id/values", (req, res) => {
   const { id } = req.params;
   if (!isManualId(id)) return res.status(400).json({ error: "id inválido" });
   if (!manualRow(id)) return res.status(404).json({ error: "ativo manual não encontrado" });
 
-  const date = String(req.body?.date || "").slice(0, 10);
-  const balance = num(req.body?.balance);
-  const original = num(req.body?.original);
-  if (!isISODate(date)) return res.status(400).json({ error: "data inválida (use AAAA-MM-DD)" });
-  if (date > todaySP()) return res.status(400).json({ error: "data no futuro" });
-  if (balance == null || balance < 0) return res.status(400).json({ error: "saldo inválido" });
-  if (original == null || original < 0) return res.status(400).json({ error: "aplicado inválido" });
+  const { date, valor, error } = lancamento(req);
+  if (error) return res.status(400).json({ error });
 
   db.prepare(
-    `INSERT INTO manual_values (asset_id, date, balance, original) VALUES (?, ?, ?, ?)
-     ON CONFLICT(asset_id, date) DO UPDATE SET balance=excluded.balance, original=excluded.original`
-  ).run(id, date, balance, original);
-  const snapshots = rebuildManualInSnapshots(date);
-  res.json({ ok: true, date, balance, original, snapshots });
+    `INSERT INTO manual_values (asset_id, date, balance) VALUES (?, ?, ?)
+     ON CONFLICT(asset_id, date) DO UPDATE SET balance=excluded.balance`
+  ).run(id, date, valor);
+  res.json({ ok: true, date, balance: valor, snapshots: rebuildManualInSnapshots(date) });
 });
 
 app.delete("/api/manual/:id/values/:date", (req, res) => {
@@ -467,6 +540,40 @@ app.delete("/api/manual/:id/values/:date", (req, res) => {
     .run(id, date);
   if (!changes) return res.status(404).json({ error: "marcação não encontrada" });
   res.json({ ok: true, snapshots: rebuildManualInSnapshots(date) });
+});
+
+/* Aporte (positivo) ou resgate (negativo), com data própria — independente da
+   data em que o saldo foi conferido. O total aplicado do ativo é a soma destes
+   até a data, então a marcação mensal não precisa repetir nem recalcular nada. */
+app.post("/api/manual/:id/flows", (req, res) => {
+  const { id } = req.params;
+  if (!isManualId(id)) return res.status(400).json({ error: "id inválido" });
+  if (!manualRow(id)) return res.status(404).json({ error: "ativo manual não encontrado" });
+
+  const { date, valor, error } = lancamento(req, { permiteNegativo: true });
+  if (error) return res.status(400).json({ error });
+
+  const info = db
+    .prepare("INSERT INTO manual_flows (asset_id, date, amount) VALUES (?, ?, ?)")
+    .run(id, date, valor);
+  res.json({
+    ok: true,
+    id: info.lastInsertRowid,
+    date,
+    amount: valor,
+    snapshots: rebuildManualInSnapshots(date),
+  });
+});
+
+app.delete("/api/manual/:id/flows/:flowId", (req, res) => {
+  const { id, flowId } = req.params;
+  if (!isManualId(id)) return res.status(400).json({ error: "id inválido" });
+  const row = db
+    .prepare("SELECT date FROM manual_flows WHERE id = ? AND asset_id = ?")
+    .get(flowId, id);
+  if (!row) return res.status(404).json({ error: "aporte não encontrado" });
+  db.prepare("DELETE FROM manual_flows WHERE id = ?").run(flowId);
+  res.json({ ok: true, snapshots: rebuildManualInSnapshots(row.date) });
 });
 
 /* Arquiva (não apaga): o ativo some da carteira de hoje em diante, mas as
