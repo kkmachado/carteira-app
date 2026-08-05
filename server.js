@@ -326,7 +326,12 @@ app.get("/api/performance", async (req, res) => {
     const income = periodRets.reduce((s, r) => s + r.income, 0);
 
     // benchmarks no mesmo range (cache SQLite; atualiza 1x/dia se defasado)
-    if (isStale(db)) await updateBenchmarks(db, { startISO: firstSnapshotDate() });
+    // falha de uma fonte não derruba a resposta, mas precisa deixar rastro no log:
+    // o SGS recusa esporadicamente e a série some da tela sem explicação
+    if (isStale(db)) {
+      const { errors } = await updateBenchmarks(db, { startISO: firstSnapshotDate() });
+      for (const [serie, msg] of Object.entries(errors)) console.error(`Falha ao atualizar ${serie}:`, msg);
+    }
     const bench = getBenchmarks(db, fromISO);
     const benchmarks = {
       cdi: rateSeries(bench.cdi || [], fromISO, lastISO),
