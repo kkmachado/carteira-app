@@ -288,7 +288,10 @@ const banner = (cls, msg) => {
 
 /* ---------- Rentabilidade (/api/performance) ---------- */
 const PCT2 = v => (v >= 0 ? '+' : '') + (v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
-const issuerName = a => (a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$| S\/A$/i,'');
+/* Nomes vêm da Pluggy e entram em innerHTML: um `&` ou `<` no emissor quebraria a
+   marcação (e um `<script>` executaria). Escapar é mais barato que confiar. */
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const issuerName = a => esc((a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$| S\/A$/i,''));
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const PERIODS = [['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
 const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']];
@@ -421,7 +424,7 @@ function renderCatTable() {
   const cols = ['mesAtual','mesAnterior','ano','m12'];
   const fmt = w => w ? PCT2(g ? w.accGrossUp : w.acc) : '—';
   const rows = perf.categories.map((c, ci) => {
-    const head = `<tr data-c="${ci}"><td class="cat">${SUB[c.subtype]||c.subtype}` +
+    const head = `<tr data-c="${ci}"><td class="cat">${SUB[c.subtype]||esc(c.subtype)}` +
       `${c.isento ? '<span class="isento">' + (g ? 'bruto equiv.' : 'isento IR') + '</span>' : ''}</td>` +
       cols.map(k => `<td>${fmt(c.windows[k])}</td>`).join('') +
       `<td>${BRL(c.balance)}</td><td>${PCT(c.share*100)}</td></tr>`;
@@ -485,9 +488,10 @@ async function load() {
   document.getElementById('assetCount').textContent = `${active.length} ativos · já descontados impostos e taxas`;
   document.getElementById('kOriginal').textContent = BRL(orig);
   document.getElementById('kProfit').textContent = BRL(gross - orig);
-  document.getElementById('kProfitPct').textContent = PCT((gross-orig)/orig*100);
+  // denominador zero (carteira vazia) renderizava "NaN%"
+  document.getElementById('kProfitPct').textContent = orig > 0 ? PCT((gross-orig)/orig*100) : '—';
   document.getElementById('kTaxes').textContent = BRL(taxes);
-  document.getElementById('kIsento').textContent = PCT(isentoBal/bal*100);
+  document.getElementById('kIsento').textContent = bal > 0 ? PCT(isentoBal/bal*100) : '—';
 
   /* Histórico: um ponto por mês (último snapshot do mês), em barras */
   const porMes = new Map();
@@ -666,7 +670,7 @@ function renderAssets(active) {
         <div class="info">
           <div class="tags">
             <span class="tag ix" style="--c:var(${IX_VAR[k]})">${k}</span>
-            <span class="tag sub">${SUB[a.subtype]||a.subtype}</span>
+            <span class="tag sub">${SUB[a.subtype]||esc(a.subtype)}</span>
             ${isento(a)?'<span class="isento">isento IR</span>':''}
           </div>
           <div class="t">${issuerName(a)}</div>

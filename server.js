@@ -93,7 +93,15 @@ async function fetchInvestments() {
   return data.results || [];
 }
 
+/* Lista vazia é sinal de falha da Pluggy (item desconectado, resposta parcial),
+   não de carteira zerada: resgate real vem com os ativos em TOTAL_WITHDRAWAL, não
+   com a lista sumindo. Gravar zeros corromperia o histórico de forma permanente —
+   o snapshot fica salvo e vira um par aporte/retirada fantasma nas barras mensais. */
 function saveSnapshot(investments) {
+  if (!investments.length) {
+    console.warn("Snapshot ignorado: a Pluggy devolveu lista vazia de investimentos");
+    return null;
+  }
   const active = investments.filter((a) => a.status === "ACTIVE");
   const total_balance = active.reduce((s, a) => s + (a.balance || 0), 0);
   const total_original = active.reduce((s, a) => s + (a.amountOriginal || 0), 0);
@@ -413,7 +421,8 @@ if (!DEMO) cron.schedule("0 12 * * *", async () => {
   try {
     const investments = await fetchInvestments();
     const snap = saveSnapshot(investments);
-    console.log(`📸 Snapshot ${snap.date}: R$ ${snap.total_balance.toFixed(2)}`);
+    if (snap) console.log(`📸 Snapshot ${snap.date}: R$ ${snap.total_balance.toFixed(2)}`);
+    else console.error("Snapshot diário não gravado: lista de investimentos vazia");
   } catch (err) {
     console.error("Falha no snapshot diário:", err.message);
   }
