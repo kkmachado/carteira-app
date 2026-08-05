@@ -143,7 +143,7 @@ test("IPCA mensal em degrau: mês parcial do início fica de fora", () => {
   close(ipcaAccumulated(rows, "2026-06-15", "2026-08-01"), 0.004);
 });
 
-test("IBOV: variação relativa ao primeiro fechamento do range", () => {
+test("IBOV: variação relativa ao fechamento que abre o range", () => {
   const rows = [
     { date: "2026-07-01", value: 120000 },
     { date: "2026-07-02", value: 121200 },
@@ -151,6 +151,30 @@ test("IBOV: variação relativa ao primeiro fechamento do range", () => {
   ];
   close(ibovAccumulated(rows, "2026-07-01", "2026-07-03"), -0.01);
   const serie = ibovSeries(rows, "2026-07-01", "2026-07-03");
+  assert.equal(serie.length, 2); // o próprio dia da base fica de fora, como nas taxas
+  close(serie[0].acc, 0.01);
+  close(serie[1].acc, -0.01);
+});
+
+test("IBOV: range que abre em dia sem pregão usa o fechamento anterior como base", () => {
+  const rows = [
+    { date: "2026-07-31", value: 120000 }, // sexta
+    { date: "2026-08-03", value: 121200 }, // segunda
+    { date: "2026-08-04", value: 118800 },
+  ];
+  // from = domingo: sem base anterior, o primeiro dia do range aparecia zerado
+  const serie = ibovSeries(rows, "2026-08-02", "2026-08-04");
+  close(serie[0].acc, 0.01);
+  close(serie[1].acc, -0.01);
+  close(ibovAccumulated(rows, "2026-08-02", "2026-08-04"), -0.01);
+});
+
+test("IBOV: sem fechamento anterior ao range, o primeiro de dentro vira base", () => {
+  const rows = [
+    { date: "2026-08-03", value: 120000 },
+    { date: "2026-08-04", value: 121200 },
+  ];
+  const serie = ibovSeries(rows, "2026-08-02", "2026-08-04");
   close(serie[0].acc, 0);
   close(serie[1].acc, 0.01);
 });

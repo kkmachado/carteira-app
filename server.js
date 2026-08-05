@@ -49,6 +49,11 @@ db.exec(`
 `);
 initBenchmarks(db);
 
+/* Dia corrente em São Paulo. `toISOString()` daria o dia UTC, que a partir das 21h
+   (BRT) já virou: o snapshot da noite nasceria datado de amanhã e o gráfico
+   ganharia um ponto no futuro. */
+const todaySP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+
 function firstSnapshotDate() {
   return db.prepare("SELECT MIN(date) AS d FROM snapshots").get()?.d || null;
 }
@@ -93,7 +98,7 @@ function saveSnapshot(investments) {
   const total_balance = active.reduce((s, a) => s + (a.balance || 0), 0);
   const total_original = active.reduce((s, a) => s + (a.amountOriginal || 0), 0);
   const total_gross = active.reduce((s, a) => s + (a.amount || 0), 0);
-  const date = new Date().toISOString().slice(0, 10);
+  const date = todaySP();
   db.prepare(
     `INSERT INTO snapshots (date, total_balance, total_original, total_gross, payload)
      VALUES (?, ?, ?, ?, ?)

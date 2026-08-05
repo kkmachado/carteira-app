@@ -386,12 +386,20 @@ function renderPerfChart() {
   const dates = twr.map(p => p.date);
   const bench = BENCHES.find(([v]) => v === state.bench)[1];
   const d = iso => new Date(iso+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
-  document.getElementById('perfRange').textContent = `${d(perf.from)} a ${d(perf.to)} · ${state.grossup ? 'com' : 'sem'} gross up`;
+  // série vazia (típico do IPCA: é mensal e o mês parcial do início fica de fora)
+  // não vira linha em zero — isso se lê como "o índice não rendeu nada"
+  const bSerie = perf.benchmarks[state.bench] || [];
+  const semDado = !bSerie.length;
+  document.getElementById('perfRange').textContent =
+    `${d(perf.from)} a ${d(perf.to)} · ${state.grossup ? 'com' : 'sem'} gross up` +
+    (semDado ? ` · sem dado de ${bench} no período` : '');
   draw('chPerf','line',{
     labels: dates.map(d => new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
     datasets: [
       { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:.25 },
-      { label:bench, data: stepMap(dates, perf.benchmarks[state.bench] || []), borderColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
+      ...(semDado ? [] : [
+        { label:bench, data: stepMap(dates, bSerie), borderColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
+      ]),
     ]
   },{
     // index + intersect:false: basta o cursor estar na vertical do ponto, em
