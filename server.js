@@ -230,6 +230,17 @@ function manualInvestments(refISO) {
   return out;
 }
 
+/* Carteira EXIBIDA = últimos dados da Pluggy + marcações manuais de HOJE.
+   O snapshot é datado pela coleta da Pluggy, que entre a meia-noite e o auto-sync
+   ainda é a de ontem. Uma marcação feita hoje é dado atual: presa à data do
+   snapshot, ela ficaria invisível — fora do total e da lista — até a Pluggy
+   sincronizar, e o app ainda recusaria recriar o ativo ("já existe").
+   Os snapshots continuam com a regra `marcação ≤ data do snapshot`: o histórico
+   não ganha valor em dia que não teve coleta. */
+function withManualHoje(payload) {
+  return [...payload.filter((a) => !isManual(a)), ...manualInvestments(todaySP())];
+}
+
 /* Reescreve a parte manual dos snapshots a partir de `fromISO`. Uma marcação nova
    (ou corrigida) vale para todos os dias a partir da data dela: sem isso a
    previdência apareceria só no snapshot do dia em que foi digitada e o gráfico de
@@ -267,7 +278,7 @@ app.get("/api/portfolio", async (_req, res) => {
       dataDate: last.date,
       demo: true,
       sync: { lastUpdatedAt: `${last.date}T14:13:00Z`, nextAutoSyncAt: null, status: "UPDATED", connector: "Demo" },
-      investments: JSON.parse(last.payload),
+      investments: withManualHoje(JSON.parse(last.payload)),
     });
   }
   try {
@@ -287,9 +298,10 @@ app.get("/api/portfolio", async (_req, res) => {
         status: item.status || null,
         connector: item.connector?.name || null,
       },
-      // os manuais só entram pelo snapshot: se ele não foi gravado (lista vazia da
-      // Pluggy), a carteira devolvida é a da Pluggy, sem inventar composição
-      investments: snap ? snap.payload : investments,
+      // marcações de hoje entram mesmo quando o snapshot é de ontem (ver
+      // withManualHoje); se o snapshot não foi gravado — lista vazia da Pluggy —
+      // a base é a resposta da Pluggy, sem inventar composição
+      investments: withManualHoje(snap ? snap.payload : investments),
     });
   } catch (err) {
     // fallback: último snapshot salvo, para o app abrir mesmo sem internet/Pluggy fora
@@ -300,7 +312,7 @@ app.get("/api/portfolio", async (_req, res) => {
         dataDate: last.date,
         stale: true,
         error: String(err.message || err),
-        investments: JSON.parse(last.payload),
+        investments: withManualHoje(JSON.parse(last.payload)),
       });
     }
     res.status(502).json({ error: String(err.message || err) });

@@ -672,12 +672,15 @@ function renderManualNote(active) {
     .map(a => ({ a, dias: diasDesde(a.markedAt) }))
     .filter(x => x.dias != null && x.dias > MARCACAO_MAX_DIAS)
     .sort((x, y) => y.dias - x.dias);
+  const linhas = velhos.map(({ a, dias }) =>
+    `<b>${titleOf(a)}</b>: marcado em ${dBR(a.markedAt)} (há ${dias} dias) — atualize o saldo`);
+  if (manualFlash) linhas.unshift(esc(manualFlash));
+  manualFlash = '';
+
   const el = document.getElementById('manualNote');
-  if (!velhos.length) { el.className = ''; el.innerHTML = ''; return; }
+  if (!linhas.length) { el.className = ''; el.innerHTML = ''; return; }
   el.className = 'warn';
-  el.innerHTML = velhos
-    .map(({ a, dias }) => `<b>${titleOf(a)}</b>: marcado em ${dBR(a.markedAt)} (há ${dias} dias) — atualize o saldo`)
-    .join('<br>');
+  el.innerHTML = linhas.join('<br>');
 }
 
 /* Aceita "55.000,00", "55000.00" e "55000": com vírgula decimal o ponto é
@@ -699,16 +702,30 @@ async function loadManual() {
   }
 }
 
+/* Devolve o corpo da resposta (objeto, sempre truthy) ou null em caso de erro. */
 async function apiManual(url, opts, msgEl) {
   if (msgEl) { msgEl.className = 'dnote'; msgEl.textContent = 'salvando…'; }
   try {
     const res = await fetch(url, opts);
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
-    return true;
+    return j;
   } catch (e) {
     if (msgEl) { msgEl.className = 'dnote err'; msgEl.textContent = String(e.message || e); }
-    return false;
+    return null;
+  }
+}
+
+/* Aviso de uma ação recém-feita; some no render seguinte. */
+let manualFlash = '';
+
+/* `snapshots: 0` = a marcação não alcançou nenhum snapshot, porque é de um dia
+   que a Pluggy ainda não coletou. O saldo já aparece no total e na lista (o
+   backend usa as marcações de hoje), mas os gráficos só a incorporam no próximo
+   fechamento — sem esse aviso, parece que o lançamento se perdeu. */
+function flashMarcacao(resp) {
+  if (resp && resp.snapshots === 0) {
+    manualFlash = `Marcação de ${dBR(resp.date)} salva e já somada ao total. Os gráficos a incorporam no próximo fechamento — a Pluggy ainda não coletou esse dia.`;
   }
 }
 
@@ -897,12 +914,12 @@ function bindManualForms(root) {
         msg.textContent = 'saldo e aplicado precisam ser números';
         return;
       }
-      const ok = await apiManual('/api/manual/' + encodeURIComponent(form.dataset.mark) + '/values', {
+      const resp = await apiManual('/api/manual/' + encodeURIComponent(form.dataset.mark) + '/values', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: fd.get('date'), balance, original }),
       }, msg);
-      if (ok) await refreshAfterManual();
+      if (resp) { flashMarcacao(resp); await refreshAfterManual(); }
     }));
 
   root.querySelectorAll('button[data-del]').forEach(btn =>
@@ -972,12 +989,12 @@ document.getElementById('addManualBtn').addEventListener('click', () => {
       msg.textContent = String(err.message || err);
       return;
     }
-    const ok = await apiManual('/api/manual/' + encodeURIComponent(created.id) + '/values', {
+    const resp = await apiManual('/api/manual/' + encodeURIComponent(created.id) + '/values', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: fd.get('date'), balance, original }),
     }, msg);
-    if (ok) box.innerHTML = '';
+    if (resp) { flashMarcacao(resp); box.innerHTML = ''; }
     // mesmo se a marcação falhar, o ativo já existe: recarrega para ele aparecer
     // na lista de pendentes, com formulário próprio
     await refreshAfterManual();
