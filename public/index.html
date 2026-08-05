@@ -205,7 +205,7 @@
     <div id="assets"></div>
   </div>
 
-  <footer>Saldo líquido já desconta IR provisionado. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Snapshot diário às 12:00, depois da sincronização da Pluggy.</footer>
+  <footer>Saldo líquido já desconta impostos e taxas. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Snapshot diário às 12:00, depois da sincronização da Pluggy.</footer>
 
 <script>
 const BRL  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -475,13 +475,14 @@ async function load() {
   const bal = active.reduce((s,a)=>s+(a.balance||0),0);
   const orig = active.reduce((s,a)=>s+(a.amountOriginal||0),0);
   const gross = active.reduce((s,a)=>s+(a.amount||0),0);
-  const taxes = active.reduce((s,a)=>s+(a.taxes||0)+(a.taxes2||0),0);
+  // só `taxes` é IR: `taxes2` é tributo financeiro (IOF), somar os dois inflava o card
+  const taxes = active.reduce((s,a)=>s+(a.taxes||0),0);
   const isentoBal = active.filter(isento).reduce((s,a)=>s+a.balance,0);
 
   document.getElementById('syncDate').textContent = new Date(p.syncedAt).toLocaleDateString('pt-BR') + (p.stale ? ' (cache)' : '');
   document.getElementById('syncDate').className = p.stale ? 'stale' : '';
   document.getElementById('totalBal').textContent = BRL2(bal);
-  document.getElementById('assetCount').textContent = `${active.length} ativos · já descontado o IR provisionado`;
+  document.getElementById('assetCount').textContent = `${active.length} ativos · já descontados impostos e taxas`;
   document.getElementById('kOriginal').textContent = BRL(orig);
   document.getElementById('kProfit').textContent = BRL(gross - orig);
   document.getElementById('kProfitPct').textContent = PCT((gross-orig)/orig*100);
@@ -580,12 +581,14 @@ function detailHTML(a) {
   const g = state.grossup;
   const profit = a.amount - (a.amountOriginal || 0);
   const itens = [
-    dItem('Saldo líquido', BRL2(a.balance), 'já sem o IR provisionado'),
+    dItem('Saldo líquido', BRL2(a.balance), 'já sem impostos e taxas'),
     dItem('Valor bruto', BRL2(a.amount)),
     dItem('Aplicado', BRL2(a.amountOriginal || 0)),
     dItem('Rendimento bruto', `<span style="color:var(${profit >= 0 ? '--pre' : '--red'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
       a.amountOriginal ? NUM(profit / a.amountOriginal * 100) + '% sobre o aplicado' : ''),
-    dItem('IR provisionado', isento(a) ? 'isento' : BRL2((a.taxes || 0) + (a.taxes2 || 0))),
+    dItem('IR provisionado', isento(a) ? 'isento' : BRL2(a.taxes || 0)),
+    // `taxes2` (tributo financeiro) só aparece em parte dos papéis; omitir quando zero
+    ...(a.taxes2 ? [dItem('IOF / tributos', BRL2(a.taxes2))] : []),
     dItem('Taxa contratada', rateLabel(a)),
     dItem('Aplicação', dBR(a.purchaseDate || a.issueDate)),
     dItem('Vencimento', dBR(a.dueDate), prazo(a.dueDate)),

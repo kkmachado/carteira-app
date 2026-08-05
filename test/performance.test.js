@@ -308,7 +308,7 @@ test("grossUpFactorWeighted: pondera pelo rendimento e usa a tabela regressiva",
 
 /* ---------- Adaptador de snapshot ---------- */
 
-test("snapshotToDay: filtra ACTIVE, soma taxes e extrai assets do payload", () => {
+test("snapshotToDay: filtra ACTIVE, soma o IR e extrai assets do payload", () => {
   const payload = JSON.stringify([
     { id: "A", status: "ACTIVE", amount: 1100, amountOriginal: 1000, balance: 1080, taxes: 15, taxes2: 5 },
     { id: "B", status: "TOTAL_WITHDRAWAL", amount: 500, amountOriginal: 500, balance: 500, taxes: 9 },
@@ -317,7 +317,7 @@ test("snapshotToDay: filtra ACTIVE, soma taxes e extrai assets do payload", () =
   assert.equal(day.gross, 1100);
   assert.equal(day.original, 1000);
   assert.equal(day.balance, 1080);
-  assert.equal(day.taxes, 20);
+  assert.equal(day.taxes, 15); // só `taxes` (IR); `taxes2` é tributo financeiro e fica fora
   assert.deepEqual(day.assets, [{ id: "A", gross: 1100, original: 1000 }]);
 });
 

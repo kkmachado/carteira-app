@@ -29,7 +29,8 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - `amount` — valor **bruto**
 - `amountOriginal` — valor aplicado
 - `amountProfit` — **vem sempre null**: rendimento é calculado como `amount − amountOriginal`
-- `taxes` / `taxes2` — IR provisionado
+- `taxes` — IR provisionado ("income taxes"). `taxes2` é **tributo financeiro** (IOF), não IR: nunca somar os dois num total de IR. Só aparece em parte dos papéis (nos dados atuais, só nos dois Tesouros).
+- `balance` desconta **taxas e tributos**, não só IR: `amount − balance` costuma ser maior que `taxes` (a diferença é custódia/taxas). Não usar `taxes` para derivar o líquido.
 - `rate` + `rateType` (`CDI` / `IPCA` / `null`) e `fixedAnnualRate` — taxa contratada (`rateType` null = prefixado)
 - `dueDate`, `issuer`, `subtype` (`CDB`, `LCA`, `LCI`, `TREASURY`, `DEBENTURES`)
 - `status` — considerar apenas `ACTIVE` nos totais (`TOTAL_WITHDRAWAL` = resgatado)
