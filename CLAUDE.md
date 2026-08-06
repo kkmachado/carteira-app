@@ -78,7 +78,8 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 ## Rentabilidade (spec-rentabilidade.md)
 
 - Cálculos puros em `lib/performance.js` (TWR/Modified Dietz, benchmarks acumulados, gross up, decomposição mensal), testados em `test/performance.test.js` (`npm test`, runner nativo do Node).
-- `GET /api/performance?period=mtd|ytd|3m|6m|12m|24m|max` entrega hero, séries dos gráficos, barras mensais e tabela por categoria/ativo; a resposta traz as versões com e sem gross up (toggle é client-side).
+- `GET /api/performance?period=mtd|ytd|3m|6m|12m|24m|max` entrega hero, séries dos gráficos, barras mensais e tabela por categoria/ativo; a resposta traz as versões com e sem gross up, mas a tela usa **sempre** a com gross up — sem ele, LCA/LCI apareceriam com rendimento líquido ao lado de CDBs brutos e do CDI. O toggle que existia no card do topo foi removido.
+- O card do topo mostra, nessa ordem: o rendimento do período em destaque, o % do CDI, e uma régua com o acumulado de CDI/IPCA/Selic/IBOV no mesmo período (calculada no frontend, do último ponto de cada série de `benchmarks` — elas já vêm recortadas pelo range). Série vazia vira `—`, não 0%: o IPCA é mensal e o mês parcial do início costuma ficar de fora.
 - Fluxo diário: quando o payload tem os ativos, resgate total sai pelo valor **bruto** do dia anterior (evita o artefato do Δ`total_original`, que só captura principal).
 
 ## Modo demo (dados fictícios)

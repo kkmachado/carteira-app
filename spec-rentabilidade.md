@@ -11,9 +11,10 @@ Replicar os dois padrões de visualização de rentabilidade dos apps do Itaú e
 
 ## Métricas de cabeçalho (hero do app)
 
-- **Rendeu**: R$ e % no período selecionado (rendimento real, não variação de saldo)
-- **% do CDI**: rentabilidade da carteira ÷ CDI acumulado no mesmo período × 100. É a métrica principal — destaque visual
-- Seletor de período: Ano atual / 3m / 6m / 12m / 24m / Máx (limitado ao histórico de snapshots disponível)
+- **Rendeu**: R$ e % no período selecionado (rendimento real, não variação de saldo). É o número em destaque
+- **% do CDI**: rentabilidade da carteira ÷ CDI acumulado no mesmo período × 100, logo abaixo do rendimento
+- **Régua de índices**: acumulado de CDI / IPCA / Selic / IBOV no mesmo período, em menor destaque e sem cor (as cores das séries ficam só nos gráficos)
+- Seletor de período: No mês (padrão) / Ano / 3m / 6m / 12m / Máx (limitado ao histórico de snapshots disponível)
 
 ## Cálculo de rentabilidade — TWR (time-weighted return)
 
@@ -47,15 +48,14 @@ Validação opcional dos aportes: `GET /investments/{id}/transactions` da Pluggy
   - **Impostos** (Δtaxes+taxes2 do mês)
 - Períodos: 3m / 6m / 12m / 24m / 36m
 
-## Toggle "gross up" (estilo Itaú)
+## Gross up (estilo Itaú)
 
 Para comparação justa entre ativos isentos (LCA/LCI) e tributados:
 
 - Taxa equivalente bruta do isento = rendimento ÷ (1 − alíquota IR)
 - Alíquota pela tabela regressiva conforme prazo decorrido do ativo:
   22,5% (até 180d), 20% (181–360d), 17,5% (361–720d), 15% (>720d)
-- Toggle no topo: "sem gross up" / "com gross up" — afeta a rentabilidade exibida por ativo e o % do CDI da carteira
-- Default: com gross up (padrão Itaú), com tooltip explicando
+- Sempre aplicado (padrão Itaú), com tooltip explicando: afeta a rentabilidade exibida por ativo e o % do CDI da carteira. O toggle "sem gross up / com gross up" que existia no topo foi removido — o backend continua devolvendo as duas versões, a tela usa só a com gross up
 
 ## Tabela por categoria (estilo Itaú "Meus produtos")
 

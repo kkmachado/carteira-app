@@ -104,14 +104,17 @@
   .chip.on { background:var(--ink); color:var(--invert-fg); border-color:var(--ink); }
   .hero-bal { padding-bottom:14px; margin-bottom:12px; border-bottom:1px solid var(--border); }
   .hero-total { font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:500; letter-spacing:-.02em; }
-  .hero-grid { display:flex; align-items:baseline; gap:26px; margin:14px 0 8px; flex-wrap:wrap; }
+  .hero-grid { display:flex; align-items:baseline; gap:12px 26px; margin:14px 0 8px; flex-wrap:wrap; }
   .hero-l { font-size:11.5px; color:var(--mut); margin-bottom:2px; }
-  .hero-cdi { font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:500; letter-spacing:-.02em; }
-  .hero-cdi small { font-size:13px; color:var(--mut); font-weight:400; margin-left:2px; }
-  .hero-v { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:500; }
+  .hero-income { font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:500; letter-spacing:-.02em; color:var(--pre); }
+  .hero-cdi { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:500; letter-spacing:-.02em; }
+  .hero-cdi small { font-size:12px; color:var(--mut); font-weight:400; margin-left:2px; }
   .hero-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; }
   .hero-note { font-size:11px; color:var(--mut); }
-  .gutoggle { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink2); cursor:pointer; }
+  /* régua dos índices: sem cor — as cores das séries ficam só nos gráficos */
+  .bench-row { display:flex; gap:6px 18px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--divider); }
+  .bench-item { display:flex; align-items:baseline; gap:6px; font-size:13px; color:var(--mut); }
+  .bench-item b { font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; color:var(--ink2); }
   .tablewrap { overflow-x:auto; margin:0 -4px; }
   table.pt { border-collapse:collapse; width:100%; min-width:580px; }
   table.pt th { text-align:right; font-size:10.5px; color:var(--mut); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--border); }
@@ -139,9 +142,25 @@
   .mform { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-top:9px; }
   @media(min-width:560px){ .mform { grid-template-columns:repeat(3,1fr); } }
   .mform label { display:block; font-size:10.5px; color:var(--mut); margin-bottom:3px; }
+  /* altura fixa: o controle de data do iOS tem altura intrínseca própria e ficava
+     mais alto que os campos de texto ao lado. min-width:0 porque item de grid tem
+     min-width:auto — o conteúdo do campo de data alargava a coluna. */
   .mform input, .mform select {
-    width:100%; font:inherit; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px;
+    width:100%; min-width:0; height:34px; font:inherit; font-family:'IBM Plex Mono',monospace;
+    font-size:13px; padding:0 9px;
     border:1px solid var(--control-border); border-radius:8px; background:var(--bg); color:var(--ink);
+  }
+  .mform input[type=date] { -webkit-appearance:none; appearance:none; }
+  /* O iOS escreve a data no formato do idioma do aparelho ("5 de ago. de 2026") e
+     não há CSS que mude isso. O valor nativo fica invisível e o mesmo dado é
+     reescrito por cima em DD/MM/AAAA; o input continua ali, então o seletor de
+     data nativo (a parte boa de type=date no iPhone) segue funcionando. */
+  .datef { position:relative; }
+  .datef input[type=date] { color:transparent; }
+  .datef input[type=date]::-webkit-date-and-time-value { color:transparent; }
+  .datef .dtext {
+    position:absolute; left:10px; top:50%; transform:translateY(-50%); pointer-events:none;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink);
   }
   .mform .row { grid-column:1/-1; display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
   .btn.primary { background:var(--ink); color:var(--invert-fg); border-color:var(--ink); }
@@ -175,13 +194,13 @@
     </div>
     <div class="chips" id="periodSel"></div>
     <div class="hero-grid">
-      <div><div class="hero-l">% do CDI no período</div><div class="hero-cdi" id="hPctCdi">—</div></div>
-      <div><div class="hero-l">Rendeu</div><div class="hero-v" id="hIncome" style="color:var(--pre)">—</div><div class="hero-note" id="hAcc"></div></div>
+      <div><div class="hero-l">Rendeu no período</div><div class="hero-income" id="hIncome">—</div><div class="hero-note" id="hAcc"></div></div>
+      <div><div class="hero-l">Sobre o CDI</div><div class="hero-cdi" id="hPctCdi">—</div></div>
     </div>
+    <!-- taxas dos índices no mesmo período, para dar régua ao número acima -->
+    <div class="bench-row" id="hBenchRow"></div>
     <div class="hero-foot">
-      <label class="gutoggle" title="LCA/LCI são isentas de IR: com gross up o rendimento delas é convertido no equivalente bruto de um ativo tributado (tabela regressiva de IR pelo prazo decorrido), para comparação justa com CDBs e com o CDI.">
-        <input type="checkbox" id="guToggle" checked /> com gross up ⓘ
-      </label>
+      <span class="hero-note" title="LCA/LCI são isentas de IR: o rendimento delas é convertido no equivalente bruto de um ativo tributado (tabela regressiva de IR pelo prazo decorrido), para comparação justa com CDBs e com o CDI.">com gross up ⓘ</span>
       <span class="hero-note" id="hNote"></span>
     </div>
   </div>
@@ -343,14 +362,17 @@ const issuerName = a => esc((a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$
    faz sentido para papel da Pluggy sem emissor (Tesouro Direto). */
 const titleOf = a => manualA(a) ? esc(a.name) : issuerName(a);
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-const PERIODS = [['mtd','Mês'],['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
+const PERIODS = [['mtd','Mês'],['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['max','Máx']];
 const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']];
 /* Carteira é sempre preta; os benchmarks usam matizes saturadas e bem separadas
    entre si e do preto — a 1px, tons escuros (o âmbar e o vinho antigos) colavam
    na linha da carteira. Só um benchmark aparece por vez. */
 const BENCH_COLOR = { cdi:'#0B6FEF', ipca:'#F97316', selic:'#9333EA', ibov:'#DB2777' };
 const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo']];
-const state = { period:'mtd', bench:'cdi', grossup:true, assetSort:'valor' };
+/* Gross up é sempre aplicado: sem ele, LCA/LCI aparecem com rendimento líquido
+   ao lado de CDBs brutos e do CDI, e a comparação sai torta. O backend continua
+   devolvendo as duas versões; a tela usa só a com gross up. */
+const state = { period:'mtd', bench:'cdi', assetSort:'valor' };
 let assetsCache = null;
 const expanded = new Set();          // categorias abertas na tabela "Meus produtos"
 const expandedAssets = new Set();    // ativos com o detalhe aberto
@@ -406,12 +428,19 @@ function renderPerf() {
   const chipOn = document.querySelector('#benchSel .chip.on');
   if (chipOn) { chipOn.style.background = BENCH_COLOR[state.bench]; chipOn.style.borderColor = BENCH_COLOR[state.bench]; }
 
-  const g = state.grossup, h = perf.hero;
-  const pctCdi = g ? h.pctCdiGrossUp : h.pctCdi;
-  document.getElementById('hPctCdi').innerHTML = pctCdi == null ? '—'
-    : Math.round(pctCdi).toLocaleString('pt-BR') + '<small>% do CDI</small>';
+  const h = perf.hero;
   document.getElementById('hIncome').textContent = BRL2(h.income);
-  document.getElementById('hAcc').textContent = PCT2(g ? h.accGrossUp : h.acc) + ' no período';
+  document.getElementById('hAcc').textContent = PCT2(h.accGrossUp) + ' no período';
+  document.getElementById('hPctCdi').innerHTML = h.pctCdiGrossUp == null ? '—'
+    : Math.round(h.pctCdiGrossUp).toLocaleString('pt-BR') + '<small>% do CDI</small>';
+  /* Acumulado de cada índice no período = último ponto da série (as séries já vêm
+     recortadas pelo range). Série vazia é dado ausente, não índice parado: o IPCA
+     é mensal e o mês parcial do início fica de fora com frequência. */
+  document.getElementById('hBenchRow').innerHTML = BENCHES.map(([v, label]) => {
+    const s = perf.benchmarks[v] || [];
+    const val = s.length ? PCT2(s[s.length-1].acc) : '—';
+    return `<span class="bench-item">${label} <b>${val}</b></span>`;
+  }).join('');
   // com um único snapshot não existe intervalo entre dois dias: nada a calcular ainda
   const since = new Date(perf.historySince + 'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
   document.getElementById('hNote').textContent = perf.twr.length < 2
@@ -435,7 +464,7 @@ function stepMap(dates, series) {
 
 /* Gráfico 1 — rentabilidade acumulada (%) da carteira vs benchmark selecionado */
 function renderPerfChart() {
-  const twr = state.grossup ? perf.twrGrossUp : perf.twr;
+  const twr = perf.twrGrossUp;
   const dates = twr.map(p => p.date);
   const bench = BENCHES.find(([v]) => v === state.bench)[1];
   const d = iso => new Date(iso+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
@@ -445,7 +474,7 @@ function renderPerfChart() {
   const semDado = !bSerie.length;
   const mx = perf.manualExcluded;
   document.getElementById('perfRange').textContent =
-    `${d(perf.from)} a ${d(perf.to)} · ${state.grossup ? 'com' : 'sem'} gross up` +
+    `${d(perf.from)} a ${d(perf.to)} · com gross up` +
     (semDado ? ` · sem dado de ${bench} no período` : '') +
     // marcação esporádica vira degrau na série diária: fica fora do TWR e do hero,
     // mas continua no patrimônio — dizer isso evita a leitura de que sumiu
@@ -466,7 +495,13 @@ function renderPerfChart() {
       tooltip:{ mode:'index', intersect:false,
         callbacks:{ label: c => `${c.dataset.label}: ${c.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%` } } },
     scales:{
-      x:{ ticks:{ maxTicksLimit:6, maxRotation:0 } },
+      /* Só as pontas do eixo: na largura de iPhone as datas do meio se atropelavam.
+         `align:'inner'` encosta a primeira à esquerda e a última à direita, senão
+         ficam centradas no ponto e vazam para fora da área do gráfico. O intervalo
+         completo (com ano) segue escrito embaixo, em `perfRange`. */
+      x:{ afterBuildTicks: a => { const t = a.ticks; if (t.length > 1) a.ticks = [t[0], t[t.length-1]]; },
+          ticks:{ autoSkip:false, maxRotation:0, align:'inner',
+                  callback: v => dates[v] ? dates[v].slice(8,10) + '/' + dates[v].slice(5,7) : '' } },
       y:{ ticks:{ callback: v => v.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' } },
     }
   });
@@ -474,12 +509,11 @@ function renderPerfChart() {
 
 /* Tabela por categoria (estilo Itaú "Meus produtos"); toque expande os ativos */
 function renderCatTable() {
-  const g = state.grossup;
   const cols = ['mesAtual','mesAnterior','ano','m12'];
-  const fmt = w => w ? PCT2(g ? w.accGrossUp : w.acc) : '—';
+  const fmt = w => w ? PCT2(w.accGrossUp) : '—';
   const rows = perf.categories.map((c, ci) => {
     const head = `<tr data-c="${ci}"><td class="cat">${SUB[c.subtype]||esc(c.subtype)}` +
-      `${c.isento ? '<span class="isento">' + (g ? 'bruto equiv.' : 'isento IR') + '</span>' : ''}` +
+      `${c.isento ? '<span class="isento">bruto equiv.</span>' : ''}` +
       `${c.manual ? '<span class="manual-tag">manual</span>' : ''}</td>` +
       cols.map(k => `<td>${fmt(c.windows[k])}</td>`).join('') +
       `<td>${BRL(c.balance)}</td><td>${PCT(c.share*100)}</td></tr>`;
@@ -504,10 +538,6 @@ function renderCatTable() {
     + (perf.categories.some(c => c.manual) ? ' · "manual" = saldo marcado à mão, a janela só rende no dia da marcação' : '');
 }
 
-document.getElementById('guToggle').addEventListener('change', (e) => {
-  state.grossup = e.target.checked;
-  renderPerf();
-});
 renderPeriodChips();
 applyTheme(document.documentElement.getAttribute('data-theme')); // ícone + defaults do Chart.js
 
@@ -747,9 +777,28 @@ function flashMarcacao(resp) {
    Separados, a marcação mensal não repete nem recalcula o total aplicado — que
    passou a ser a soma dos aportes — e o dinheiro novo cai no dia em que entrou,
    não no dia em que alguém abriu o app para conferir. */
+/* Campo de data: input nativo + o valor reescrito por cima em DD/MM/AAAA (ver
+   `.datef` no CSS). `syncDateFields` mantém os dois em dia. */
+const dateField = (label) => `
+  <div><label>${label}</label>
+    <div class="datef">
+      <input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required />
+      <span class="dtext">${dBR(hojeISO())}</span>
+    </div>
+  </div>`;
+
+/* Delegado no document: os formulários manuais são reinjetados a cada render e um
+   listener preso a cada campo morreria junto com o HTML anterior. */
+['input','change'].forEach(ev => document.addEventListener(ev, (e) => {
+  const inp = e.target;
+  if (!inp.matches || !inp.matches('.datef input[type=date]')) return;
+  const txt = inp.parentElement.querySelector('.dtext');
+  if (txt) txt.textContent = inp.value ? dBR(inp.value) : '';
+}));
+
 const formSaldo = (id) => `
   <form class="mform" data-mark="${id}">
-    <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+    ${dateField('Data de referência')}
     <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
     <div class="row">
       <button class="btn primary" type="submit">Salvar saldo</button>
@@ -759,7 +808,7 @@ const formSaldo = (id) => `
 
 const formAporte = (id, label = 'Registrar aporte') => `
   <form class="mform" data-flow="${id}">
-    <div><label>Data do aporte</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+    ${dateField('Data do aporte')}
     <div><label>Valor</label><input name="amount" inputmode="decimal" placeholder="1.000,00" required /></div>
     <div class="row">
       <button class="btn primary" type="submit">${label}</button>
@@ -824,7 +873,6 @@ function manualDetailHTML(a) {
 
 function detailHTML(a) {
   if (manualA(a)) return manualDetailHTML(a);
-  const g = state.grossup;
   const profit = a.amount - (a.amountOriginal || 0);
   const itens = [
     dItem('Saldo líquido', BRL2(a.balance), 'já sem impostos e taxas'),
@@ -850,9 +898,9 @@ function detailHTML(a) {
   const w = perf && perf.assets && perf.assets[a.id] && perf.assets[a.id].windows;
   if (w) {
     const cols = [['mesAtual','Mês'],['mesAnterior','Mês ant.'],['ano','Ano'],['m12','12m']];
-    html += `<div class="dsec">Rentabilidade ${g && isento(a) ? '(bruto equivalente)' : ''}</div>
+    html += `<div class="dsec">Rentabilidade ${isento(a) ? '(bruto equivalente)' : ''}</div>
       <div class="dgrid">${cols.map(([k, l]) =>
-        dItem(l, w[k] ? PCT2(g ? w[k].accGrossUp : w[k].acc) : '—')).join('')}</div>`;
+        dItem(l, w[k] ? PCT2(w[k].accGrossUp) : '—')).join('')}</div>`;
   }
 
   // movimentações: 'loading' até a resposta; a lista fica em txCache e sobrevive ao re-render
@@ -1019,7 +1067,7 @@ document.getElementById('addManualBtn').addEventListener('click', () => {
       <div><label>Nome</label><input name="name" maxlength="80" placeholder="Previdência Itaú" required /></div>
       <div><label>Instituição</label><input name="issuer" maxlength="80" placeholder="Itaú Vida e Previdência" /></div>
       <div><label>Tipo</label><select name="subtype"><option value="PENSION">Previdência</option><option value="OTHER">Outros</option></select></div>
-      <div><label>Data de referência</label><input type="date" name="date" value="${hojeISO()}" max="${hojeISO()}" required /></div>
+      ${dateField('Data de referência')}
       <div><label>Saldo</label><input name="balance" inputmode="decimal" placeholder="0,00" required /></div>
       <div><label>Aporte inicial</label><input name="amount" inputmode="decimal" placeholder="0,00" required /></div>
       <div class="row">
