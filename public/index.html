@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="theme-color" content="#14261F" />
+<meta name="theme-color" content="#0F1115" />
 <script>
   // Resolve o tema antes do primeiro paint (localStorage > preferência do SO),
   // para a página nunca "piscar" no tema errado ao carregar.
@@ -20,135 +20,307 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
   * { box-sizing: border-box; margin: 0; }
+  [hidden] { display: none !important; }
+  /* ---------- Tokens CARBON BI ----------
+     O design system é dark-only; o tema claro abaixo é uma derivação das mesmas
+     matizes (o app é PWA de iPhone e segue o tema do sistema). Toda cor de
+     gráfico entra nos configs como 'var(--x)' e é resolvida no draw() — é assim
+     que o mesmo config sobrevive à troca de tema. */
   :root {
-    color-scheme: light dark;
-    --bg:#F2F1EB; --card:#FBFAF6; --border:#E2E0D6; --divider:#ECEAE0; --control-border:#D8D5C9; --track:#E9E7DD;
-    --ink:#14261F; --ink2:#3E4A42; --mut:#6B7066; --faint:#8A8E82;
-    --pre:#0F766E; --red:#B91C1C; --ipca:#B45309;
-    --ix-cdi:#2563EB; --ix-ipca:#B45309; --ix-pre:#0F766E; --ix-man:#7C3AED;
-    --invert-fg:#FBFAF6; --chart-grid:rgba(20,38,31,.08);
-    --pre-bg:#0F766E14; --ipca-bg:#B4530914; --ipca-border:#B4530940; --red-bg:#B91C1C10; --red-border:#B91C1C40;
+    color-scheme: dark;
+    --bg:hsl(220 18% 7%);
+    --glow:radial-gradient(circle at 50% 0%, hsl(142 70% 45% / .15), transparent 70%);
+    --card:linear-gradient(180deg, hsl(220 17% 10%) 0%, hsl(220 17% 8%) 100%);
+    --card-solid:hsl(220 17% 9%);
+    --sec:hsl(220 14% 14%);
+    --track:hsl(220 14% 14%);
+    --border:hsl(220 14% 16%);
+    --fg:hsl(210 20% 96%);
+    --mut:hsl(215 14% 60%);
+    --th:hsl(215 14% 55%);
+    --subtle:hsl(215 14% 40%);
+    --pri:hsl(142 70% 45%);
+    --pri-dim:hsl(142 70% 45% / .15);
+    --pri-border:hsl(142 70% 45% / .30);
+    --pri-fg:hsl(220 25% 6%);
+    --warn:hsl(38 95% 58%);
+    --warn-dim:hsl(38 95% 58% / .12);
+    --warn-border:hsl(38 95% 58% / .30);
+    --danger:hsl(0 72% 55%);
+    --danger-dim:hsl(0 72% 55% / .12);
+    --danger-border:hsl(0 72% 55% / .30);
+    --info:hsl(210 90% 60%);
+    --c1:hsl(270 65% 55%); --c2:hsl(320 70% 58%); --c3:hsl(25 90% 55%);
+    --c4:hsl(45 92% 50%);  --c5:hsl(142 60% 38%); --c6:hsl(0 72% 60%);
+    --shadow:0 1px 0 0 hsl(220 14% 18%) inset, 0 8px 24px -12px hsl(220 30% 0% / .5);
+    /* indexadores (tags, donut) */
+    --ix-cdi:hsl(210 90% 60%); --ix-ipca:hsl(38 95% 58%); --ix-pre:hsl(142 70% 45%); --ix-man:hsl(270 65% 55%);
+    /* séries de benchmark */
+    --bench-cdi:hsl(210 90% 60%); --bench-ipca:hsl(25 90% 55%); --bench-selic:hsl(270 65% 55%); --bench-ibov:hsl(320 70% 58%);
+    --ease:cubic-bezier(.4,0,.2,1);
   }
-  :root[data-theme="dark"] {
-    --bg:#12181A; --card:#1B2226; --border:#2A3236; --divider:#242C30; --control-border:#3A4347; --track:#242C30;
-    --ink:#ECEAE2; --ink2:#C7CBC2; --mut:#8B948E; --faint:#6E7671;
-    --pre:#2DD4BF; --red:#F87171; --ipca:#FB923C;
-    --ix-cdi:#60A5FA; --ix-ipca:#FB923C; --ix-pre:#2DD4BF; --ix-man:#A78BFA;
-    --invert-fg:#12181A; --chart-grid:rgba(255,255,255,.08);
-    --pre-bg:#2DD4BF1F; --ipca-bg:#FB923C1F; --ipca-border:#FB923C4D; --red-bg:#F871711A; --red-border:#F871714D;
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg:hsl(220 20% 97%);
+    --glow:radial-gradient(circle at 50% 0%, hsl(142 70% 45% / .10), transparent 70%);
+    --card:linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 22% 99%) 100%);
+    --card-solid:hsl(0 0% 100%);
+    --sec:hsl(220 16% 93%);
+    --track:hsl(220 16% 91%);
+    --border:hsl(220 14% 87%);
+    --fg:hsl(220 25% 12%);
+    --mut:hsl(220 10% 42%);
+    --th:hsl(220 10% 46%);
+    --subtle:hsl(220 10% 56%);
+    --pri:hsl(142 64% 30%);
+    --pri-dim:hsl(142 64% 30% / .12);
+    --pri-border:hsl(142 64% 30% / .28);
+    --pri-fg:hsl(0 0% 100%);
+    --warn:hsl(32 88% 38%);
+    --warn-dim:hsl(32 88% 38% / .10);
+    --warn-border:hsl(32 88% 38% / .30);
+    --danger:hsl(0 68% 44%);
+    --danger-dim:hsl(0 68% 44% / .09);
+    --danger-border:hsl(0 68% 44% / .28);
+    --info:hsl(210 85% 44%);
+    --c1:hsl(270 60% 46%); --c2:hsl(320 62% 46%); --c3:hsl(25 85% 44%);
+    --c4:hsl(45 88% 38%);  --c5:hsl(142 55% 32%); --c6:hsl(0 68% 48%);
+    --shadow:0 1px 0 0 hsl(0 0% 100%) inset, 0 8px 24px -14px hsl(220 30% 20% / .18);
+    --ix-cdi:hsl(210 85% 44%); --ix-ipca:hsl(32 88% 38%); --ix-pre:hsl(142 64% 30%); --ix-man:hsl(270 60% 46%);
+    --bench-cdi:hsl(210 85% 44%); --bench-ipca:hsl(25 85% 44%); --bench-selic:hsl(270 60% 46%); --bench-ibov:hsl(320 62% 46%);
   }
   body {
-    font-family:'Archivo',system-ui,sans-serif; background:var(--bg); color:var(--ink);
-    padding: max(16px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
-    max-width: 860px; margin: 0 auto;
+    font-family:'Inter',ui-sans-serif,system-ui,sans-serif; background:var(--glow), var(--bg); color:var(--fg);
+    padding: max(16px, env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+    max-width: 900px; margin: 0 auto; min-height:100vh;
+    animation: fade .3s ease-out;
   }
-  .mono { font-family:'IBM Plex Mono',monospace; }
-  header { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
-  .eyebrow { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:var(--mut); margin-bottom:4px; }
-  h1 { font-size:26px; font-weight:800; font-stretch:90%; letter-spacing:-.02em; }
-  #themeBtn { border:1px solid var(--control-border); background:var(--card); color:var(--ink2); border-radius:999px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
-  #themeBtn:active { background:var(--track); }
+  @keyframes fade { from { opacity:0 } to { opacity:1 } }
+  .mono, .m { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+
+  /* ---------- Header ---------- */
+  header { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  /* no iPhone a nota de frescor não cabe ao lado do título: desce para uma linha
+     própria, com o botão de tema na ponta */
+  @media(max-width:640px){
+    .hright { width:100%; justify-content:space-between; }
+    #syncNote { text-align:left; }
+  }
+  .eyebrow { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+             font-size:10.5px; letter-spacing:.12em; color:var(--mut); margin-bottom:4px; }
+  h1 { font-size:30px; font-weight:600; letter-spacing:-.025em; }
+  .hright { display:flex; align-items:center; gap:10px; }
+  #syncNote { text-align:right; font-size:11px; line-height:1.5; color:var(--mut); }
+  #syncNote b { font-weight:600; color:var(--fg); }
+  #themeBtn { width:36px; height:36px; flex-shrink:0; border-radius:8px; border:1px solid var(--border);
+              background:var(--sec); color:var(--mut); display:flex; align-items:center; justify-content:center;
+              cursor:pointer; transition:all .2s var(--ease); }
+  #themeBtn:hover { background:var(--pri-dim); color:var(--pri); }
   #themeBtn svg { width:17px; height:17px; }
-  .kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:12px; }
-  @media(min-width:640px){ .kpis{ grid-template-columns:repeat(4,1fr);} }
-  .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
-  .kpi .l { font-size:11.5px; color:var(--mut); margin-bottom:3px; }
-  .kpi .v { font-family:'IBM Plex Mono',monospace; font-size:17px; font-weight:500; }
-  .kpi .s { font-size:11.5px; color:var(--mut); margin-top:2px; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
-  .card h2 { font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink2); margin-bottom:10px; }
-  canvas { max-height:220px; }
-  .issuer { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:4px 0; }
-  .issuer .name { width:118px; }
-  .track { flex:1; height:7px; background:var(--track); border-radius:4px; overflow:hidden; }
-  .fill { height:100%; border-radius:4px; background:var(--ink); }
-  .fill.over { background:var(--red); }
-  .issuer .val { font-family:'IBM Plex Mono',monospace; font-size:12px; width:80px; text-align:right; }
-  .asset-row { border-top:1px solid var(--divider); }
-  .asset { display:flex; align-items:flex-start; gap:10px; padding:11px 4px; width:100%;
-           background:none; border:0; border-radius:8px; text-align:left; font:inherit; color:inherit; cursor:pointer; }
-  .asset:active { background:var(--track); }
-  .asset .chev { flex-shrink:0; color:var(--faint); align-self:center; transition:transform .18s; }
-  .asset .chev svg { display:block; width:16px; height:16px; }
-  .asset[aria-expanded="true"] .chev { transform:rotate(180deg); }
-  .tag { font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:500; padding:3px 6px; border-radius:6px; white-space:nowrap; }
-  .tag.sub { background:var(--track); color:var(--ink2); }
-  /* cor do indexador vem de --c (inline): fundo é a própria cor esmaecida, então
-     a tag acompanha a troca de tema sem precisar re-renderizar a lista */
-  .tag.ix { color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); }
-  .asset .tags { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:5px; }
-  .asset .info { flex:1; min-width:0; }
-  .asset .t { font-weight:600; font-size:13.5px; }
-  .asset .d { font-size:12px; color:var(--mut); }
-  .asset .money { text-align:right; }
-  .asset .b { font-family:'IBM Plex Mono',monospace; font-size:13.5px; font-weight:500; }
-  .asset .p { font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
-  .isento { font-size:10px; font-weight:600; color:var(--pre); background:var(--pre-bg); border-radius:5px; padding:1px 5px; margin-left:6px; }
-  .btn { border:1px solid var(--control-border); background:transparent; border-radius:8px; padding:6px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; color:var(--ink2); }
-  .btn:active { background:var(--track); }
-  footer { font-size:11.5px; color:var(--faint); line-height:1.5; margin-top:8px; }
-  #status { font-size:12px; color:var(--mut); }
-  #syncNote { font-size:11.5px; color:var(--mut); margin:-8px 0 12px; line-height:1.5; }
-  #syncNote b { font-weight:600; color:var(--ink2); }
-  .stale { color:var(--red); }
-  #banner, #manualNote { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px; border:1px solid; line-height:1.5; }
-  #banner.warn, #manualNote.warn { display:block; background:var(--ipca-bg); border-color:var(--ipca-border); color:var(--ipca); }
-  #banner.err { display:block; background:var(--red-bg); border-color:var(--red-border); color:var(--red); }
-  #manualNote b { font-weight:700; }
-  .bench-note { font-size:11px; color:var(--mut); text-align:center; margin-top:8px; }
-  .skeleton { color:var(--mut); opacity:.5; }
+  .stale { color:var(--danger); }
+
+  /* ---------- Card base CARBON ---------- */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow);
+          padding:14px 16px; margin-bottom:12px; transition:all .2s var(--ease); }
+  .card:hover { border-color:var(--pri-border); }
+  .card h2 { font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:.07em;
+             color:var(--mut); margin-bottom:10px; }
+  .card h2.row { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+  .note { font-size:11px; color:var(--mut); text-align:center; margin-top:8px; }
+  .note.err { color:var(--danger); }
+
+  /* ---------- Hero ---------- */
+  .hero { padding:16px 18px; }
+  .hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+  .hero-l { font-size:11.5px; color:var(--mut); margin-bottom:4px; }
+  .hero-income { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                 font-size:40px; font-weight:500; letter-spacing:-.03em; color:var(--pri); line-height:1.05; }
+  .hero-sec { display:flex; align-items:baseline; gap:16px; margin-top:8px; flex-wrap:wrap; }
+  .hero-sec .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                 font-size:14px; color:var(--fg); }
+  .hero-sec .v small { color:var(--mut); font-size:11.5px; margin-left:4px; font-family:'Inter',sans-serif; }
+  .hero-total { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                font-size:24px; font-weight:500; letter-spacing:-.02em; }
+  .hero-sub { font-size:11px; color:var(--subtle); margin-top:4px; }
+  .hero-right { text-align:right; }
+  /* ao quebrar a linha, o bloco do saldo passa a ocupar a largura toda e o
+     alinhamento à direita vira um recuo estranho */
+  @media(max-width:640px){ .hero-right { text-align:left; } }
+  .gu { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut); cursor:pointer; }
+  .gu input { accent-color:var(--pri); width:14px; height:14px; margin:0; }
+  .hero-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  #hNote { font-size:11px; color:var(--subtle); }
+
+  /* ---------- Chips ---------- */
   .chips { display:flex; gap:6px; flex-wrap:wrap; }
-  .chip { font-family:'IBM Plex Mono',monospace; font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--control-border); background:transparent; color:var(--ink2); cursor:pointer; }
-  .chip.on { background:var(--ink); color:var(--invert-fg); border-color:var(--ink); }
-  .hero-bal { padding-bottom:14px; margin-bottom:12px; border-bottom:1px solid var(--border); }
-  .hero-total { font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:500; letter-spacing:-.02em; }
-  .hero-grid { display:flex; align-items:baseline; gap:12px 26px; margin:14px 0 8px; flex-wrap:wrap; }
-  .hero-l { font-size:11.5px; color:var(--mut); margin-bottom:2px; }
-  .hero-income { font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:500; letter-spacing:-.02em; color:var(--pre); }
-  .hero-cdi { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:500; letter-spacing:-.02em; }
-  .hero-cdi small { font-size:12px; color:var(--mut); font-weight:400; margin-left:2px; }
-  .hero-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; }
-  .hero-note { font-size:11px; color:var(--mut); }
-  /* régua dos índices: sem cor — as cores das séries ficam só nos gráficos */
-  .bench-row { display:flex; gap:6px 18px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--divider); }
-  .bench-item { display:flex; align-items:baseline; gap:6px; font-size:13px; color:var(--mut); }
-  .bench-item b { font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; color:var(--ink2); }
+  .chip { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:11px;
+          padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:transparent;
+          color:var(--mut); cursor:pointer; transition:all .2s var(--ease); }
+  .chip:hover { color:var(--fg); border-color:var(--pri-border); }
+  .chip.on { background:var(--pri-dim); color:var(--pri); border-color:var(--pri-border); }
+
+  /* ---------- Abas ---------- */
+  .tabs { display:flex; gap:4px; padding:4px; background:var(--card-solid); border:1px solid var(--border);
+          border-radius:999px; margin-bottom:14px; }
+  .tab { flex:1; border:0; border-radius:999px; padding:9px 10px; font-family:inherit; font-size:12.5px;
+         font-weight:600; cursor:pointer; background:transparent; color:var(--mut); transition:all .2s var(--ease); }
+  .tab.on { background:var(--pri); color:var(--pri-fg); }
+  @media(max-width:640px){ .tab { font-size:11.5px; padding:9px 4px; } }
+
+  /* ---------- KPIs ---------- */
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+  @media(max-width:640px){ .kpis { grid-template-columns:repeat(2,1fr); } }
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow);
+         padding:12px 14px; transition:all .2s var(--ease); }
+  .kpi:hover { border-color:var(--pri-border); }
+  .kpi .l { font-size:11px; color:var(--mut); margin-bottom:3px; }
+  .kpi .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+            font-size:17px; font-weight:500; }
+  .kpi .s { font-size:11.5px; color:var(--mut); margin-top:2px; }
+
+  /* ---------- Gráficos ---------- */
+  canvas { max-height:210px; }
+  .legend { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+            margin-top:8px; font-size:11px; color:var(--mut); }
+  .legend .items { display:flex; gap:14px; flex-wrap:wrap; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:99px; margin-right:5px; }
+
+  /* ---------- O que puxou o mês ---------- */
+  .pull { display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid var(--border); }
+  .pull .info { flex:1; min-width:0; }
+  .pull .t { font-size:13px; font-weight:600; }
+  .pull .d { font-size:11.5px; color:var(--mut); }
+  .pull .money { text-align:right; }
+  .pull .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:13.5px; }
+  .pull .b { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+             font-size:11.5px; color:var(--mut); }
+
+  /* ---------- Tags de indexador ---------- */
+  /* a cor vem de --c (inline): o fundo é a própria cor esmaecida, então a tag
+     acompanha a troca de tema sem re-renderizar a lista */
+  .tag { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; padding:2px 5px; border-radius:5px;
+         white-space:nowrap; color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); }
+  .tag.lg { font-size:10.5px; padding:3px 6px; border-radius:6px; }
+  .selo { font-size:10px; font-weight:600; border-radius:5px; padding:1px 5px; white-space:nowrap;
+          color:var(--pri); background:var(--pri-dim); }
+  .selo.man { color:var(--ix-man); background:color-mix(in srgb, var(--ix-man) 14%, transparent); }
+
+  /* ---------- Tabelas ---------- */
   .tablewrap { overflow-x:auto; margin:0 -4px; }
-  table.pt { border-collapse:collapse; width:100%; min-width:580px; }
-  table.pt th { text-align:right; font-size:10.5px; color:var(--mut); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--border); }
+  table.pt { border-collapse:collapse; width:100%; min-width:560px; }
+  table.pt th { text-align:right; font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:.07em;
+                color:var(--th); padding:0 8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
   table.pt th:first-child, table.pt td:first-child { text-align:left; }
-  table.pt td { font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; padding:8px; border-bottom:1px solid var(--divider); white-space:nowrap; }
-  table.pt td.cat { font-family:'Archivo',system-ui,sans-serif; font-weight:600; font-size:12.5px; cursor:pointer; }
+  table.pt td { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                font-size:11.5px; text-align:right; padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  table.pt td.cat { font-family:'Inter',sans-serif; font-weight:600; font-size:12.5px; color:var(--fg); cursor:pointer; }
   table.pt tr.sub td { color:var(--mut); font-size:11px; }
-  table.pt tr.sub td.cat { font-weight:400; font-size:11.5px; color:var(--ink); padding-left:18px; cursor:default; }
-  /* Detalhe do ativo (expansível) */
-  .detail { padding:2px 4px 14px; }
+  table.pt tr.sub td.cat { font-weight:400; font-size:11.5px; color:var(--fg); padding-left:18px; cursor:default; }
+  /* tabela de ativos */
+  table.at { border-collapse:collapse; width:100%; min-width:620px; }
+  table.at th { font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:.07em; color:var(--th);
+                padding:0 8px 10px; border-bottom:1px solid var(--border); text-align:right; white-space:nowrap; }
+  table.at th.l { text-align:left; }
+  table.at td { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                font-size:11.5px; text-align:right; color:var(--mut); padding:9px 8px;
+                border-bottom:1px solid var(--border); white-space:nowrap; }
+  table.at td.name { text-align:left; white-space:normal; }
+  table.at td.bal { font-size:12.5px; color:var(--fg); }
+  table.at td.due.soon { color:var(--warn); }
+  table.at td.mes.up { color:var(--pri); }
+  table.at td.mes.down { color:var(--danger); }
+  table.at tr.arow { cursor:pointer; transition:background .2s var(--ease); }
+  table.at tr.arow:hover td { background:color-mix(in srgb, var(--pri) 5%, transparent); }
+  table.at td.chev { width:24px; padding:9px 4px; color:var(--subtle); }
+  table.at td.chev svg { display:block; width:15px; height:15px; transition:transform .18s; }
+  table.at tr.arow[aria-expanded="true"] td.chev svg { transform:rotate(180deg); }
+  /* o detalhe mora numa célula da tabela: precisa desfazer o alinhamento à direita,
+     a fonte mono e o nowrap que valem para as colunas de número */
+  table.at td.dcell { padding:0 8px; border-bottom:1px solid var(--border);
+                      text-align:left; white-space:normal; font-family:'Inter',sans-serif;
+                      font-size:13px; color:var(--fg); }
+  .aname { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .aname .t { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--fg); }
+  .aname .s { font-family:'Inter',sans-serif; font-size:11px; color:var(--mut); }
+  .afoot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+           border-top:1px solid var(--border); margin-top:8px; padding-top:11px; }
+  .afoot .hint { font-size:11px; color:var(--mut); }
+
+  /* ---------- Emissores / FGC ---------- */
+  .issuer { display:flex; align-items:center; gap:10px; font-size:12.5px; padding:4px 0; flex-wrap:wrap; }
+  .issuer .name { width:170px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .track { flex:1; height:6px; background:var(--sec); border-radius:999px; overflow:hidden; }
+  .fill { height:100%; border-radius:999px; }
+  .issuer .val { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                 font-size:12px; width:92px; text-align:right; flex-shrink:0; }
+  .issuer .folga { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+                   font-size:11px; width:74px; text-align:right; color:var(--mut); flex-shrink:0; }
+  /* no iPhone as quatro colunas espremem a barra a uns 40px: o trilho desce para
+     uma linha própria, em largura cheia */
+  @media(max-width:640px){
+    .issuer { gap:6px 10px; }
+    .issuer .name { width:auto; flex:1; }
+    .issuer .val { width:auto; }
+    .issuer .folga { width:auto; }
+    .issuer .track { order:3; flex-basis:100%; }
+  }
+  .issuer .folga.none { color:var(--danger); }
+  .issuer .folga.free { color:var(--subtle); }
+  .risk2 { display:grid; grid-template-columns:1fr 1.15fr; gap:12px; }
+  @media(max-width:640px){ .risk2 { grid-template-columns:1fr; } }
+
+  /* ---------- Banners ---------- */
+  #banner, #manualNote { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px;
+                         border:1px solid; line-height:1.5; }
+  #banner.warn, #manualNote.warn { display:block; background:var(--warn-dim); border-color:var(--warn-border); color:var(--warn); }
+  #banner.err { display:block; background:var(--danger-dim); border-color:var(--danger-border); color:var(--danger); }
+  #manualNote b { font-weight:700; }
+  #status { font-size:12px; color:var(--mut); }
+
+  /* ---------- Botões ---------- */
+  .btn { border:1px solid var(--border); background:transparent; border-radius:8px; padding:6px 12px;
+         font-size:12.5px; cursor:pointer; font-family:inherit; color:var(--mut); transition:all .2s var(--ease); }
+  .btn:hover { color:var(--fg); border-color:var(--pri-border); }
+  .btn.primary { background:var(--pri); color:var(--pri-fg); border-color:var(--pri); }
+  .btn.primary:hover { color:var(--pri-fg); }
+  .btn.danger { color:var(--danger); border-color:var(--danger-border); }
+  .btn.danger:hover { color:var(--danger); }
+
+  footer { font-size:11px; color:var(--subtle); line-height:1.5; margin-top:14px; }
+
+  /* ---------- Detalhe do ativo (expansível) ---------- */
+  .detail { padding:4px 4px 14px; }
   .dgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:11px 16px; }
   @media(min-width:560px){ .dgrid { grid-template-columns:repeat(4,1fr); } }
-  .dgrid .l { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.09em; color:var(--mut); text-transform:uppercase; margin-bottom:3px; }
-  .dgrid .v { font-family:'IBM Plex Mono',monospace; font-size:13px; word-break:break-word; }
-  .dgrid .v small { font-size:10.5px; color:var(--mut); display:block; margin-top:2px; font-family:'Archivo',system-ui,sans-serif; }
-  .dsec { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.09em; color:var(--mut); text-transform:uppercase; margin:16px 0 7px; }
-  .mov { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 11px; border:1px solid var(--divider); border-radius:8px; margin-bottom:6px; }
-  .mov .t { font-size:12.5px; font-weight:600; }
-  .mov .d { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mut); margin-top:1px; }
-  .mov .a { font-family:'IBM Plex Mono',monospace; font-size:12.5px; white-space:nowrap; }
-  .dnote { font-size:11.5px; color:var(--mut); }
-  .dnote.err { color:var(--red); }
-  /* Marcação manual (previdência) */
-  .manual-tag { font-size:10px; font-weight:600; color:var(--ix-man); background:color-mix(in srgb, var(--ix-man) 14%, transparent); border-radius:5px; padding:1px 5px; margin-left:6px; }
+  .dgrid .l { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px; letter-spacing:.09em;
+              color:var(--mut); text-transform:uppercase; margin-bottom:3px; }
+  .dgrid .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+              font-size:13px; color:var(--fg); word-break:break-word; }
+  .dgrid .v small { font-size:10.5px; color:var(--mut); display:block; margin-top:2px; font-family:'Inter',sans-serif; }
+  .dsec { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px; letter-spacing:.09em; color:var(--mut);
+          text-transform:uppercase; margin:16px 0 7px; }
+  .mov { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 11px;
+         border:1px solid var(--border); border-radius:8px; margin-bottom:6px; }
+  .mov .t { font-size:12.5px; font-weight:600; color:var(--fg); }
+  .mov .d { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; color:var(--mut); margin-top:1px; }
+  .mov .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+            font-size:12.5px; white-space:nowrap; }
+  .dnote { font-family:'Inter',sans-serif; font-size:11.5px; color:var(--mut); }
+  .dnote.err { color:var(--danger); }
+
+  /* ---------- Marcação manual (previdência) ---------- */
   .mform { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-top:9px; }
   @media(min-width:560px){ .mform { grid-template-columns:repeat(3,1fr); } }
-  .mform label { display:block; font-size:10.5px; color:var(--mut); margin-bottom:3px; }
+  .mform label { display:block; font-family:'Inter',sans-serif; font-size:10.5px; color:var(--mut); margin-bottom:3px; }
   /* altura fixa: o controle de data do iOS tem altura intrínseca própria e ficava
      mais alto que os campos de texto ao lado. min-width:0 porque item de grid tem
      min-width:auto — o conteúdo do campo de data alargava a coluna. */
   .mform input, .mform select {
-    width:100%; min-width:0; height:34px; font:inherit; font-family:'IBM Plex Mono',monospace;
+    width:100%; min-width:0; height:34px; font:inherit; font-family:'JetBrains Mono',ui-monospace,monospace;
     font-size:13px; padding:0 9px;
-    border:1px solid var(--control-border); border-radius:8px; background:var(--bg); color:var(--ink);
+    border:1px solid var(--border); border-radius:8px; background:var(--sec); color:var(--fg);
   }
   .mform input[type=date] { -webkit-appearance:none; appearance:none; }
   /* O iOS escreve a data no formato do idioma do aparelho ("5 de ago. de 2026") e
@@ -160,15 +332,14 @@
   .datef input[type=date]::-webkit-date-and-time-value { color:transparent; }
   .datef .dtext {
     position:absolute; left:10px; top:50%; transform:translateY(-50%); pointer-events:none;
-    font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink);
+    font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px; color:var(--fg);
   }
   .mform .row { grid-column:1/-1; display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
-  .btn.primary { background:var(--ink); color:var(--invert-fg); border-color:var(--ink); }
-  .btn.danger { color:var(--red); border-color:var(--red-border); }
-  .mark { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 11px; border:1px solid var(--divider); border-radius:8px; margin-bottom:6px; }
-  .mark .d { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--mut); }
-  .mark .a { font-family:'IBM Plex Mono',monospace; font-size:12.5px; }
-  .mark button { background:none; border:0; color:var(--faint); cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
+  .mark { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 11px;
+          border:1px solid var(--border); border-radius:8px; margin-bottom:6px; }
+  .mark .d { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--mut); }
+  .mark .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:12.5px; }
+  .mark button { background:none; border:0; color:var(--subtle); cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
 </style>
 </head>
 <body>
@@ -177,80 +348,110 @@
       <div class="eyebrow">CARTEIRA · PLUGGY · <span id="syncDate">—</span></div>
       <h1>Investimentos</h1>
     </div>
-    <button id="themeBtn" aria-label="Alternar tema claro/escuro" title="Alternar tema"></button>
+    <div class="hright">
+      <div id="syncNote"></div>
+      <button id="themeBtn" aria-label="Alternar tema claro/escuro" title="Alternar tema"></button>
+    </div>
   </header>
 
-  <div id="syncNote"></div>
-
   <div id="banner"></div>
-
   <div id="manualNote"></div>
 
-  <div class="card">
-    <div class="hero-bal">
-      <div class="hero-l">Saldo líquido</div>
-      <div class="hero-total" id="totalBal">—</div>
-      <div class="hero-note" id="assetCount"></div>
+  <!-- Hero de rendimento: sempre visível, acima das abas -->
+  <div class="card hero">
+    <div class="hero-top">
+      <div>
+        <div class="hero-l" id="hIncomeL">Rendeu no período</div>
+        <div class="hero-income" id="hIncome">—</div>
+        <div class="hero-sec">
+          <div class="v" id="hAcc">—<small>no período</small></div>
+          <div class="v" id="hPctCdi">—<small>% do CDI</small></div>
+          <label class="gu" title="LCA/LCI são isentas de IR: o rendimento delas é convertido no equivalente bruto de um ativo tributado (tabela regressiva de IR pelo prazo decorrido), para comparação justa com CDBs e com o CDI.">
+            <input type="checkbox" id="grossUp" checked /> com gross up ⓘ
+          </label>
+        </div>
+      </div>
+      <div class="hero-right">
+        <div class="hero-l">Saldo líquido</div>
+        <div class="hero-total" id="totalBal">—</div>
+        <div class="hero-sub" id="assetCount"></div>
+      </div>
     </div>
-    <div class="chips" id="periodSel"></div>
-    <div class="hero-grid">
-      <div><div class="hero-l">Rendeu no período</div><div class="hero-income" id="hIncome">—</div><div class="hero-note" id="hAcc"></div></div>
-      <div><div class="hero-l">Sobre o CDI</div><div class="hero-cdi" id="hPctCdi">—</div></div>
-    </div>
-    <!-- taxas dos índices no mesmo período, para dar régua ao número acima -->
-    <div class="bench-row" id="hBenchRow"></div>
     <div class="hero-foot">
-      <span class="hero-note" title="LCA/LCI são isentas de IR: o rendimento delas é convertido no equivalente bruto de um ativo tributado (tabela regressiva de IR pelo prazo decorrido), para comparação justa com CDBs e com o CDI.">com gross up ⓘ</span>
-      <span class="hero-note" id="hNote"></span>
+      <div class="chips" id="periodSel"></div>
+      <span id="hNote"></span>
     </div>
   </div>
 
-  <div class="kpis">
-    <div class="kpi"><div class="l">Aplicado</div><div class="v" id="kOriginal">—</div></div>
-    <div class="kpi"><div class="l">Rendimento bruto</div><div class="v" id="kProfit" style="color:var(--pre)">—</div><div class="s" id="kProfitPct"></div></div>
-    <div class="kpi"><div class="l">IR provisionado</div><div class="v" id="kTaxes" style="color:var(--ipca)">—</div></div>
-    <div class="kpi"><div class="l">Isento de IR</div><div class="v" id="kIsento">—</div><div class="s">LCA / LCI</div></div>
-  </div>
+  <nav class="tabs" id="tabs" role="tablist">
+    <button class="tab" data-tab="geral"  role="tab">Visão geral</button>
+    <button class="tab" data-tab="rent"   role="tab">Rentabilidade</button>
+    <button class="tab" data-tab="ativos" role="tab">Ativos</button>
+    <button class="tab" data-tab="risco"  role="tab">Risco</button>
+  </nav>
 
-  <div class="card">
-    <h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      Rentabilidade acumulada <span class="chips" id="benchSel"></span>
-    </h2>
-    <div class="chips" id="periodSelPerf" style="margin-bottom:10px"></div>
-    <canvas id="chPerf"></canvas>
-    <div class="bench-note" id="perfRange"></div>
-  </div>
+  <!-- ---------- Visão geral ---------- -->
+  <section data-panel="geral" role="tabpanel">
+    <div class="kpis">
+      <div class="kpi"><div class="l">Aplicado</div><div class="v" id="kOriginal">—</div></div>
+      <div class="kpi"><div class="l">Rendimento bruto</div><div class="v" id="kProfit" style="color:var(--pri)">—</div><div class="s" id="kProfitPct"></div></div>
+      <div class="kpi"><div class="l">IR provisionado</div><div class="v" id="kTaxes" style="color:var(--warn)">—</div></div>
+      <div class="kpi"><div class="l">Isento de IR</div><div class="v" id="kIsento">—</div><div class="s">LCA / LCI</div></div>
+    </div>
 
-  <div class="card"><h2>Evolução da carteira</h2><canvas id="chHistory"></canvas></div>
+    <div class="card">
+      <h2 class="row"><span>Carteira vs <span id="benchName">CDI</span></span> <span class="chips" id="benchSel"></span></h2>
+      <canvas id="chPerf"></canvas>
+      <div class="legend">
+        <div class="items" id="perfLegend"></div>
+        <span id="perfRange"></span>
+      </div>
+    </div>
 
-  <div class="card"><h2>Por indexador</h2><canvas id="chIndexer" style="max-height:200px"></canvas></div>
+    <div class="card">
+      <h2>O que puxou o mês</h2>
+      <div id="pulled"></div>
+    </div>
+  </section>
 
-  <div class="card"><h2>Vencimentos por ano</h2><canvas id="chDue"></canvas></div>
+  <!-- ---------- Rentabilidade ---------- -->
+  <section data-panel="rent" role="tabpanel" hidden>
+    <div class="card">
+      <h2>Meus produtos</h2>
+      <div class="tablewrap" id="catTable"></div>
+      <div class="note" id="catNote"></div>
+    </div>
+    <div class="card"><h2>Evolução da carteira</h2><canvas id="chHistory"></canvas></div>
+  </section>
 
-  <div class="card">
-    <h2>Concentração por emissor</h2>
-    <div id="issuers"></div>
-    <div class="bench-note" id="issuersNote"></div>
-  </div>
-
-  <div class="card">
-    <h2>Meus produtos</h2>
-    <div class="tablewrap" id="catTable"></div>
-    <div class="bench-note" id="catNote"></div>
-  </div>
-
-  <div class="card">
-    <h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      Ativos <span class="chips" id="assetSort"></span>
-    </h2>
-    <div id="status"></div>
-    <div id="assets"></div>
-    <div style="border-top:1px solid var(--divider); padding-top:11px; margin-top:6px">
+  <!-- ---------- Ativos ---------- -->
+  <section data-panel="ativos" role="tabpanel" hidden>
+    <div class="card">
+      <h2 class="row"><span id="assetsTitle">Ativos</span> <span class="chips" id="assetSort"></span></h2>
+      <div id="status"></div>
+      <div class="tablewrap" id="assets"></div>
+      <div class="afoot">
+        <button class="btn" id="addManualBtn">+ ativo manual</button>
+        <span class="hint">toque na linha para abrir movimentações e detalhes</span>
+      </div>
       <div id="pendingManual"></div>
-      <button class="btn" id="addManualBtn">+ ativo manual</button>
       <div id="newManualForm"></div>
     </div>
-  </div>
+  </section>
+
+  <!-- ---------- Risco ---------- -->
+  <section data-panel="risco" role="tabpanel" hidden>
+    <div class="card">
+      <h2 class="row"><span>Concentração por emissor</span>
+        <span style="font-size:11px;text-transform:none;letter-spacing:0">teto FGC R$ 250.000 por instituição</span></h2>
+      <div id="issuers"></div>
+      <div class="note" id="issuersNote"></div>
+    </div>
+    <div class="risk2">
+      <div class="card"><h2>Por indexador</h2><canvas id="chIndexer" style="max-height:200px"></canvas></div>
+      <div class="card"><h2>Vencimentos por ano</h2><canvas id="chDue" style="max-height:180px"></canvas></div>
+    </div>
+  </section>
 
   <footer>Saldo líquido já desconta impostos e taxas. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Coleta automática às 12:00 e 19:00. Ativos marcados como <b>manual</b> (previdência) não vêm do Open Finance: o saldo é o da última marcação e fica fora do cálculo de rentabilidade da carteira.</footer>
 
@@ -259,6 +460,8 @@ const BRL  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maxi
 const BRL2 = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
 const PCT  = v => v.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
 const IX_VAR = { 'CDI':'--ix-cdi', 'IPCA+':'--ix-ipca', 'Prefixado':'--ix-pre', 'Sem indexador':'--ix-man' };
+/* rótulo curto para a coluna Ativo, onde a tag divide a linha com emissor e subtype */
+const IX_CURTO = { 'CDI':'CDI', 'IPCA+':'IPCA+', 'Prefixado':'Pré', 'Sem indexador':'Sem ix' };
 const SUB = { CDB:'CDB', LCA:'LCA', LCI:'LCI', TREASURY:'Tesouro', DEBENTURES:'Debênture', MULTIMARKET_FUND:'Fundo multimercado', STOCK_FUND:'Fundo de ações', PENSION:'Previdência', OTHER:'Outros' };
 /* Ativo manual (previdência): não vem da Pluggy, o saldo é marcado à mão.
    Não tem indexador, vencimento, taxa contratada nem IR provisionado — cada
@@ -268,13 +471,13 @@ const manualA = a => a.source === 'manual';
 const ix = a => manualA(a) ? 'Sem indexador' : a.rateType === 'CDI' ? 'CDI' : a.rateType === 'IPCA' ? 'IPCA+' : 'Prefixado';
 const isento = a => a.subtype === 'LCA' || a.subtype === 'LCI';
 const rateLabel = a => {
-  if (manualA(a)) return 'marcado em ' + dBR(a.markedAt);
+  if (manualA(a)) return 'marcado ' + dBR(a.markedAt).slice(0,5);
   const k = ix(a);
   if (k === 'CDI') return `${a.rate}% do CDI`;
   if (k === 'IPCA+') return `IPCA + ${Number(a.fixedAnnualRate || a.rate).toLocaleString('pt-BR',{maximumFractionDigits:2})}%`;
   return `${Number(a.fixedAnnualRate).toLocaleString('pt-BR',{maximumFractionDigits:2})}% a.a.`;
 };
-Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+Chart.defaults.font.family = "'JetBrains Mono', ui-monospace, monospace";
 Chart.defaults.font.size = 11;
 /* Legenda com bolinha sólida em vez do retângulo padrão, em todos os tipos de
    gráfico. Nas linhas, o marcador é pintado com o `backgroundColor` do dataset
@@ -289,6 +492,9 @@ Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
    horizontal antes do texto — a 40px padrão o rótulo ficava longe da bolinha. */
 Chart.defaults.plugins.legend.labels.boxHeight = 8 / Math.SQRT2;
 Chart.defaults.plugins.legend.labels.boxWidth = 8;
+/* Grade tracejada do CARBON BI; entra em cada escala porque o Chart.js não tem
+   um default global de grid que valha para todos os tipos de escala. */
+const GRID = { color:'var(--border)', borderDash:[3,3], drawTicks:false };
 let charts = {};
 
 /* ---------- Tema claro/escuro ----------
@@ -306,19 +512,20 @@ function resolveVars(v) {
 }
 const chartCfg = {};
 
-const THEME_BG = { light:'#F2F1EB', dark:'#12181A' };
+const THEME_BG = { light:'#F6F7F9', dark:'#0F1115' };
 const ICON = {
   // ícone mostra o tema para o qual se vai trocar
   dark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z"/></svg>',
 };
+const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
 function applyTheme(mode) {
   document.documentElement.setAttribute('data-theme', mode);
   document.querySelector('meta[name="theme-color"]').setAttribute('content', THEME_BG[mode]);
   document.getElementById('themeBtn').innerHTML = ICON[mode];
   Chart.defaults.color = cssVar('--mut');
-  Chart.defaults.borderColor = cssVar('--chart-grid');
+  Chart.defaults.borderColor = cssVar('--border');
   for (const id in chartCfg) { const c = chartCfg[id]; draw(id, c.type, c.data, c.opts); }
   if (perf && !perf.empty) renderPerf(); // o chip do benchmark tem cor inline
 }
@@ -341,9 +548,10 @@ function renderSyncNote(sync) {
   const el = document.getElementById('syncNote');
   if (!sync || !sync.lastUpdatedAt) { el.textContent = ''; return; }
   const dt = iso => new Date(iso).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(', ', ' ');
+  el.title = 'a conexão atualiza sozinha 1x por dia';
   const partes = ['dados do banco: <b>' + dt(sync.lastUpdatedAt) + '</b>'];
   if (sync.nextAutoSyncAt) partes.push('próxima sincronização: <b>' + dt(sync.nextAutoSyncAt) + '</b>');
-  el.innerHTML = partes.join(' · ') + '<br>a conexão atualiza sozinha 1x por dia.';
+  el.innerHTML = partes.join('<br>');
 }
 
 const banner = (cls, msg) => {
@@ -362,28 +570,58 @@ const issuerName = a => esc((a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$
    faz sentido para papel da Pluggy sem emissor (Tesouro Direto). */
 const titleOf = a => manualA(a) ? esc(a.name) : issuerName(a);
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-const PERIODS = [['mtd','Mês'],['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['max','Máx']];
+const MESES_L = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const PERIODS = [['mtd','Mês'],['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
 const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']];
-/* Carteira é sempre preta; os benchmarks usam matizes saturadas e bem separadas
-   entre si e do preto — a 1px, tons escuros (o âmbar e o vinho antigos) colavam
-   na linha da carteira. Só um benchmark aparece por vez. */
-const BENCH_COLOR = { cdi:'#0B6FEF', ipca:'#F97316', selic:'#9333EA', ibov:'#DB2777' };
-const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo']];
-/* Gross up é sempre aplicado: sem ele, LCA/LCI aparecem com rendimento líquido
-   ao lado de CDBs brutos e do CDI, e a comparação sai torta. O backend continua
-   devolvendo as duas versões; a tela usa só a com gross up. */
-const state = { period:'mtd', bench:'cdi', assetSort:'valor' };
-let assetsCache = null;
+/* Só um benchmark aparece por vez; a cor da série é a mesma da chip e do título. */
+const BENCH_VAR = { cdi:'--bench-cdi', ipca:'--bench-ipca', selic:'--bench-selic', ibov:'--bench-ibov' };
+const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo'],['vencimento','Vencimento'],['mes','Mês']];
+const state = {
+  period:'mtd', bench:'cdi', assetSort:'valor', grossup:true,
+  /* aba escolhida sobrevive ao fechar o PWA: o app reabre onde parou */
+  tab: (location.hash || '').slice(1) || localStorage.getItem('tab') || 'geral',
+};
+let assetsCache = null, totalBalance = 0;
 const expanded = new Set();          // categorias abertas na tabela "Meus produtos"
 const expandedAssets = new Set();    // ativos com o detalhe aberto
 const txCache = {};                  // id → { loading } | { list, stale } | { error }
 let perf = null, invById = {};
+
+/* Gross up: o payload traz as duas versões de tudo (o cálculo é o mesmo, muda só
+   o tratamento de LCA/LCI), então o toggle é client-side e não refaz fetch.
+   Marcado por padrão — sem ele, as isentas aparecem com rendimento líquido ao
+   lado de CDBs brutos e do CDI, e a comparação sai torta. */
+const gAcc = w => !w ? null : (state.grossup ? w.accGrossUp : w.acc);
+const guLabel = () => state.grossup ? 'com gross up' : 'sem gross up';
 
 function chips(elId, items, sel, onPick) {
   const el = document.getElementById(elId);
   el.innerHTML = items.map(([v,l]) => `<button class="chip ${String(v)===String(sel)?'on':''}" data-v="${v}">${l}</button>`).join('');
   el.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => onPick(b.dataset.v)));
 }
+
+/* ---------- Abas ---------- */
+const TABS = ['geral','rent','ativos','risco'];
+function renderTabs() {
+  if (!TABS.includes(state.tab)) state.tab = 'geral';
+  document.querySelectorAll('#tabs .tab').forEach(b => {
+    const on = b.dataset.tab === state.tab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on);
+  });
+  document.querySelectorAll('section[data-panel]').forEach(s => { s.hidden = s.dataset.panel !== state.tab; });
+  /* canvas criado dentro de painel escondido nasce com 0px: o ResizeObserver do
+     Chart.js resolve ao aparecer, mas só no frame seguinte — o resize explícito
+     evita o gráfico esticado no primeiro toque da aba */
+  for (const id in charts) charts[id].resize();
+}
+document.querySelectorAll('#tabs .tab').forEach(b =>
+  b.addEventListener('click', () => {
+    state.tab = b.dataset.tab;
+    localStorage.setItem('tab', state.tab);
+    history.replaceState(null, '', '#' + state.tab);
+    renderTabs();
+  }));
 
 /* Falha aqui não derruba o resto do app, mas precisa aparecer: sem isso o card
    fica em "—" para sempre (ex.: servidor antigo, sem a rota → 404 em HTML). */
@@ -412,44 +650,48 @@ async function loadPerf() {
   renderPerf();
 }
 
-/* Seletor de período existe desde o início: continua utilizável (para tentar outro
-   período) mesmo quando o cálculo falhou. As duas instâncias — hero e gráfico de
-   rentabilidade — leem e escrevem o mesmo `state.period`, então ficam sincronizadas. */
 function renderPeriodChips() {
-  const pick = v => { state.period = v; renderPeriodChips(); loadPerf(); };
-  chips('periodSel', PERIODS, state.period, pick);
-  chips('periodSelPerf', PERIODS, state.period, pick);
+  chips('periodSel', PERIODS, state.period, v => { state.period = v; renderPeriodChips(); loadPerf(); });
+}
+
+/* Rótulo do hero: no período do mês, o mês por extenso — é a pergunta que a tela
+   responde primeiro ("quanto rendeu no mês"). */
+function heroLabel() {
+  if (state.period === 'mtd' && perf) return 'Rendeu em ' + MESES_L[Number(perf.to.slice(5,7)) - 1];
+  if (state.period === 'ytd' && perf) return 'Rendeu em ' + perf.to.slice(0,4);
+  return 'Rendeu no período';
 }
 
 function renderPerf() {
   if (!perf || perf.empty) return;
   chips('benchSel', BENCHES, state.bench, v => { state.bench = v; renderPerf(); });
-  // o chip selecionado veste a cor da própria linha no gráfico
+  // a chip selecionada e o título vestem a cor da própria linha no gráfico
+  const benchColor = cssVar(BENCH_VAR[state.bench]);
+  const benchLabel = BENCHES.find(([v]) => v === state.bench)[1];
   const chipOn = document.querySelector('#benchSel .chip.on');
-  if (chipOn) { chipOn.style.background = BENCH_COLOR[state.bench]; chipOn.style.borderColor = BENCH_COLOR[state.bench]; }
+  if (chipOn) { chipOn.style.background = benchColor; chipOn.style.borderColor = benchColor; chipOn.style.color = cssVar('--pri-fg'); }
+  const bn = document.getElementById('benchName');
+  bn.textContent = benchLabel;
+  bn.style.color = benchColor;
 
   const h = perf.hero;
-  document.getElementById('hIncome').textContent = BRL2(h.income);
-  document.getElementById('hAcc').textContent = PCT2(h.accGrossUp) + ' no período';
-  document.getElementById('hPctCdi').innerHTML = h.pctCdiGrossUp == null ? '—'
-    : Math.round(h.pctCdiGrossUp).toLocaleString('pt-BR') + '<small>% do CDI</small>';
-  /* Acumulado de cada índice no período = último ponto da série (as séries já vêm
-     recortadas pelo range). Série vazia é dado ausente, não índice parado: o IPCA
-     é mensal e o mês parcial do início fica de fora com frequência. */
-  document.getElementById('hBenchRow').innerHTML = BENCHES.map(([v, label]) => {
-    const s = perf.benchmarks[v] || [];
-    const val = s.length ? PCT2(s[s.length-1].acc) : '—';
-    return `<span class="bench-item">${label} <b>${val}</b></span>`;
-  }).join('');
+  document.getElementById('hIncomeL').textContent = heroLabel();
+  document.getElementById('hIncome').textContent = (h.income >= 0 ? '+' : '') + BRL2(h.income);
+  document.getElementById('hAcc').innerHTML =
+    PCT2(state.grossup ? h.accGrossUp : h.acc) + '<small>no período</small>';
+  const pct = state.grossup ? h.pctCdiGrossUp : h.pctCdi;
+  document.getElementById('hPctCdi').innerHTML = pct == null ? '—'
+    : Math.round(pct).toLocaleString('pt-BR') + '<small>% do CDI</small>';
   // com um único snapshot não existe intervalo entre dois dias: nada a calcular ainda
   const since = new Date(perf.historySince + 'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
   document.getElementById('hNote').textContent = perf.twr.length < 2
     ? 'primeiro snapshot em ' + since + ' — a rentabilidade começa no próximo fechamento'
     : 'histórico desde ' + since;
 
-  renderPerfChart();
+  renderPerfChart(benchLabel, benchColor);
   renderCatTable();
-  if (assetsCache) renderAssets(); // o detalhe do ativo mostra rentabilidade e segue o gross up
+  renderPulled();
+  if (assetsCache) renderAssets(); // a coluna Mês e o detalhe do ativo seguem o gross up
 }
 
 /* Valor do benchmark na data de cada snapshot: último ponto ≤ data (degrau).
@@ -462,36 +704,50 @@ function stepMap(dates, series) {
   });
 }
 
-/* Gráfico 1 — rentabilidade acumulada (%) da carteira vs benchmark selecionado */
-function renderPerfChart() {
-  const twr = perf.twrGrossUp;
+/* Acumulado de cada índice no período = último ponto da série (as séries já vêm
+   recortadas pelo range). Série vazia é dado ausente, não índice parado: o IPCA
+   é mensal e o mês parcial do início fica de fora com frequência. */
+const benchAcc = v => {
+  const s = (perf.benchmarks || {})[v] || [];
+  return s.length ? s[s.length-1].acc : null;
+};
+
+/* Gráfico — rentabilidade acumulada (%) da carteira vs benchmark selecionado */
+function renderPerfChart(benchLabel, benchColor) {
+  const twr = state.grossup ? perf.twrGrossUp : perf.twr;
   const dates = twr.map(p => p.date);
-  const bench = BENCHES.find(([v]) => v === state.bench)[1];
   const d = iso => new Date(iso+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
   // série vazia (típico do IPCA: é mensal e o mês parcial do início fica de fora)
   // não vira linha em zero — isso se lê como "o índice não rendeu nada"
   const bSerie = perf.benchmarks[state.bench] || [];
   const semDado = !bSerie.length;
   const mx = perf.manualExcluded;
+  const carteiraAcc = twr.length ? twr[twr.length-1].acc : 0;
+  const bAcc = benchAcc(state.bench);
+  document.getElementById('perfLegend').innerHTML =
+    `<span><span class="dot" style="background:var(--pri)"></span>Carteira ${PCT2(carteiraAcc)}</span>` +
+    `<span><span class="dot" style="background:${benchColor}"></span>${benchLabel} ${bAcc == null ? '—' : PCT2(bAcc)}</span>`;
   document.getElementById('perfRange').textContent =
-    `${d(perf.from)} a ${d(perf.to)} · com gross up` +
-    (semDado ? ` · sem dado de ${bench} no período` : '') +
+    `${d(perf.from)} a ${d(perf.to)} · ${guLabel()}` +
+    (semDado ? ` · sem dado de ${benchLabel} no período` : '') +
     // marcação esporádica vira degrau na série diária: fica fora do TWR e do hero,
     // mas continua no patrimônio — dizer isso evita a leitura de que sumiu
     (mx && mx.count ? ` · ${BRL(mx.balance)} de saldo manual fora do cálculo` : '');
+  const ultimo = twr.length - 1;
   draw('chPerf','line',{
     labels: dates.map(d => new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
     datasets: [
-      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', backgroundColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
       ...(semDado ? [] : [
-        { label:bench, data: stepMap(dates, bSerie), borderColor:BENCH_COLOR[state.bench], backgroundColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
+        { label:benchLabel, data: stepMap(dates, bSerie), borderColor:`var(${BENCH_VAR[state.bench]})`, backgroundColor:`var(${BENCH_VAR[state.bench]})`, borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0 },
       ]),
+      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--pri)', backgroundColor:'var(--pri)',
+        borderWidth:2, borderJoinStyle:'round', pointRadius: c => c.dataIndex === ultimo ? 3 : 0, pointHoverRadius:3, tension:0 },
     ]
   },{
     // index + intersect:false: basta o cursor estar na vertical do ponto, em
     // qualquer altura do gráfico, e o tooltip traz as duas séries lado a lado
     interaction: { mode:'index', intersect:false, axis:'x' },
-    plugins:{ legend:{display:true,position:'bottom'},
+    plugins:{ legend:{display:false},   // a legenda do design fica embaixo, em HTML
       tooltip:{ mode:'index', intersect:false,
         callbacks:{ label: c => `${c.dataset.label}: ${c.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%` } } },
     scales:{
@@ -499,22 +755,85 @@ function renderPerfChart() {
          `align:'inner'` encosta a primeira à esquerda e a última à direita, senão
          ficam centradas no ponto e vazam para fora da área do gráfico. O intervalo
          completo (com ano) segue escrito embaixo, em `perfRange`. */
-      x:{ afterBuildTicks: a => { const t = a.ticks; if (t.length > 1) a.ticks = [t[0], t[t.length-1]]; },
+      x:{ grid:{ display:false },
+          afterBuildTicks: a => { const t = a.ticks; if (t.length > 1) a.ticks = [t[0], t[t.length-1]]; },
           ticks:{ autoSkip:false, maxRotation:0, align:'inner',
                   callback: v => dates[v] ? dates[v].slice(8,10) + '/' + dates[v].slice(5,7) : '' } },
-      y:{ ticks:{ callback: v => v.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' } },
+      y:{ grid:GRID, ticks:{ callback: v => v.toLocaleString('pt-BR',{maximumFractionDigits:2}) + '%' } },
     }
   });
+}
+
+/* Card "O que puxou o mês": o melhor ativo, o próximo vencimento e a previdência
+   manual — as três leituras que o resto da tela não dá de graça. */
+function renderPulled() {
+  const el = document.getElementById('pulled');
+  const lista = assetsCache || [];
+  if (!lista.length) { el.innerHTML = ''; return; }
+  const linhas = [];
+  const tag = (label, varName) => `<span class="tag lg" style="--c:var(${varName})">${label}</span>`;
+
+  // 1. melhor rentabilidade do mês (manuais ficam de fora: só rendem no dia da marcação)
+  if (perf && perf.assets) {
+    let melhor = null;
+    for (const a of lista) {
+      if (manualA(a)) continue;
+      const w = perf.assets[a.id] && perf.assets[a.id].windows.mesAtual;
+      const acc = gAcc(w);
+      if (acc == null) continue;
+      if (!melhor || acc > melhor.acc) melhor = { a, acc, income: w.income };
+    }
+    if (melhor) linhas.push(`<div class="pull">
+      ${tag(ix(melhor.a), IX_VAR[ix(melhor.a)])}
+      <div class="info">
+        <div class="t">${titleOf(melhor.a)} · ${rateLabel(melhor.a)}</div>
+        <div class="d">melhor rentabilidade do mês</div>
+      </div>
+      <div class="money">
+        <div class="a" style="color:var(--pri)">${PCT2(melhor.acc)}</div>
+        <div class="b">${melhor.income >= 0 ? '+' : ''}${BRL(melhor.income)}</div>
+      </div>
+    </div>`);
+  }
+
+  // 2. próximo vencimento
+  const hoje = hojeISO();
+  const prox = lista.filter(a => a.dueDate && a.dueDate.slice(0,10) >= hoje)
+    .sort((a,b) => a.dueDate.localeCompare(b.dueDate))[0];
+  if (prox) linhas.push(`<div class="pull">
+    ${tag(ix(prox), IX_VAR[ix(prox)])}
+    <div class="info">
+      <div class="t">${titleOf(prox)} · ${SUB[prox.subtype] || esc(prox.subtype)}</div>
+      <div class="d">vence em ${dBR(prox.dueDate)} — ${prazo(prox.dueDate)}</div>
+    </div>
+    <div class="money"><div class="a">próximo</div><div class="b">${BRL(prox.balance)}</div></div>
+  </div>`);
+
+  // 3. previdência manual
+  for (const a of lista.filter(manualA)) {
+    linhas.push(`<div class="pull">
+      ${tag('manual', '--ix-man')}
+      <div class="info">
+        <div class="t">${titleOf(a)}</div>
+        <div class="d">marcada em ${dBR(a.markedAt).slice(0,5)} — fora do TWR da carteira</div>
+      </div>
+      <div class="money">
+        <div class="a">${totalBalance > 0 ? PCT(a.balance/totalBalance*100) : '—'}</div>
+        <div class="b">${BRL(a.balance)}</div>
+      </div>
+    </div>`);
+  }
+  el.innerHTML = linhas.join('');
 }
 
 /* Tabela por categoria (estilo Itaú "Meus produtos"); toque expande os ativos */
 function renderCatTable() {
   const cols = ['mesAtual','mesAnterior','ano','m12'];
-  const fmt = w => w ? PCT2(w.accGrossUp) : '—';
+  const fmt = w => { const v = gAcc(w); return v == null ? '—' : PCT2(v); };
   const rows = perf.categories.map((c, ci) => {
     const head = `<tr data-c="${ci}"><td class="cat">${SUB[c.subtype]||esc(c.subtype)}` +
-      `${c.isento ? '<span class="isento">bruto equiv.</span>' : ''}` +
-      `${c.manual ? '<span class="manual-tag">manual</span>' : ''}</td>` +
+      `${c.isento && state.grossup ? ' <span class="selo">bruto equiv.</span>' : ''}` +
+      `${c.manual ? ' <span class="selo man">manual</span>' : ''}</td>` +
       cols.map(k => `<td>${fmt(c.windows[k])}</td>`).join('') +
       `<td>${BRL(c.balance)}</td><td>${PCT(c.share*100)}</td></tr>`;
     const subs = (expanded.has(ci) ? c.assetIds : []).map(id => {
@@ -538,7 +857,13 @@ function renderCatTable() {
     + (perf.categories.some(c => c.manual) ? ' · "manual" = saldo marcado à mão, a janela só rende no dia da marcação' : '');
 }
 
+document.getElementById('grossUp').addEventListener('change', e => {
+  state.grossup = e.target.checked;
+  renderPerf();
+});
+
 renderPeriodChips();
+renderTabs();
 applyTheme(document.documentElement.getAttribute('data-theme')); // ícone + defaults do Chart.js
 
 async function load() {
@@ -568,6 +893,7 @@ async function load() {
   // só `taxes` é IR: `taxes2` é tributo financeiro (IOF), somar os dois inflava o card
   const taxes = active.reduce((s,a)=>s+(a.taxes||0),0);
   const isentoBal = active.filter(isento).reduce((s,a)=>s+a.balance,0);
+  totalBalance = bal;
 
   // dia dos NÚMEROS (a coleta da Pluggy), não o do relógio: depois da meia-noite e
   // antes do auto-sync a carteira exibida ainda é a de ontem
@@ -576,7 +902,7 @@ async function load() {
   document.getElementById('syncDate').className = p.stale ? 'stale' : '';
   renderManualNote(active);
   document.getElementById('totalBal').textContent = BRL2(bal);
-  document.getElementById('assetCount').textContent = `${active.length} ativos · já descontados impostos e taxas`;
+  document.getElementById('assetCount').textContent = `${active.length} ativos · já sem impostos e taxas`;
   document.getElementById('kOriginal').textContent = BRL(orig);
   document.getElementById('kProfit').textContent = BRL(gross - orig);
   // denominador zero (carteira vazia) renderizava "NaN%"
@@ -584,18 +910,23 @@ async function load() {
   document.getElementById('kTaxes').textContent = BRL(taxes);
   document.getElementById('kIsento').textContent = bal > 0 ? PCT(isentoBal/bal*100) : '—';
 
-  /* Histórico: um ponto por mês (último snapshot do mês), em barras */
+  /* Histórico: um ponto por mês (último snapshot do mês), em barras.
+     O mês corrente sai em verde cheio; os fechados, no verde escuro do CARBON. */
   const porMes = new Map();
   for (const r of history) porMes.set(r.date.slice(0,7), r); // ordenado por data: o último vence
   const meses = [...porMes.entries()];
+  const mesAtual = meses.length ? meses[meses.length-1][0] : null;
   draw('chHistory','bar',{
     labels: meses.map(([m]) => MESES[Number(m.slice(5)) - 1] + '/' + m.slice(2,4)),
     datasets:[
-      { label:'Saldo líquido', data:meses.map(([,r]) => r.total_balance), backgroundColor:'var(--ink)', borderRadius:3 },
+      { label:'Saldo líquido', data:meses.map(([,r]) => r.total_balance),
+        backgroundColor: meses.map(([m]) => m === mesAtual ? 'var(--pri)' : 'var(--c5)'),
+        borderRadius:4 },
     ]
   },{ plugins:{ legend:{display:false},
       tooltip:{ callbacks:{ label: c => BRL2(c.parsed.y) } } },
-      scales:{ x:{ ticks:{ maxTicksLimit:12, maxRotation:0 } }, y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
+      scales:{ x:{ grid:{display:false}, ticks:{ maxTicksLimit:12, maxRotation:0 } },
+               y:{ grid:GRID, ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
 
   /* Indexador */
   const byIx = {};
@@ -603,7 +934,7 @@ async function load() {
   draw('chIndexer','doughnut',{
     labels:Object.keys(byIx),
     datasets:[{ data:Object.values(byIx), backgroundColor:Object.keys(byIx).map(k=>`var(${IX_VAR[k]})`), borderWidth:0 }]
-  },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ color:'var(--ink2)',
+  },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ color:'var(--mut)',
     // o Chart.js pinta o texto da legenda com legendItem.fontColor (não com labels.color)
     // quando generateLabels é customizado — sem isso, cai no preto padrão do canvas
     generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], fontColor:c.options.plugins.legend.labels.color, pointStyle:'circle', lineWidth:0 })) } } } });
@@ -614,27 +945,57 @@ async function load() {
   active.filter(a => a.dueDate).forEach(a => { const y = new Date(a.dueDate).getFullYear(); byYear[y]=(byYear[y]||0)+a.balance; });
   draw('chDue','bar',{
     labels:Object.keys(byYear),
-    datasets:[{ data:Object.values(byYear), backgroundColor:'var(--ink)', borderRadius:3 }]
-  },{ plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
+    datasets:[{ data:Object.values(byYear), backgroundColor:'var(--c5)', borderRadius:4 }]
+  },{ plugins:{legend:{display:false}},
+      scales:{ x:{ grid:{display:false} }, y:{ grid:GRID, ticks:{ callback:v=>Math.round(v/1000)+'k' } } } });
 
-  /* Emissores — o alerta vermelho é o teto do FGC, que não cobre previdência
-     (VGBL/PGBL são reservas da seguradora): ativo manual fica fora do card, e a
-     escala das barras usa só o que é coberto, senão a régua do limite mente. */
-  const fgc = active.filter(a => !manualA(a));
-  const fgcBal = fgc.reduce((s,a)=>s+(a.balance||0),0);
-  const byIssuer = {};
-  fgc.forEach(a => { const n = a.issuer || 'Tesouro Nacional'; byIssuer[n]=(byIssuer[n]||0)+a.balance; });
-  document.getElementById('issuers').innerHTML = Object.entries(byIssuer)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([n,v])=>`<div class="issuer">
-        <span class="name">${esc(n.replace(/ S\.?A\.?$| S\/A$/i,''))}</span>
-        <div class="track"><div class="fill ${v>250000?'over':''}" style="width:${fgcBal>0?v/fgcBal*100:0}%"></div></div>
-        <span class="val">${BRL(v)}</span>
-      </div>`).join('');
-  document.getElementById('issuersNote').textContent =
-    active.length > fgc.length ? 'previdência fora: não é coberta pelo FGC' : '';
-
+  renderIssuers(active);
   renderAssets(active);
+  renderPulled();
+}
+
+/* ---------- Concentração por emissor / folga FGC ----------
+   O FGC garante R$ 250 mil por instituição — a régua da barra é esse teto, não o
+   maior emissor: é o teto que importa ler. Fora da cobertura: Tesouro (risco
+   soberano, sem teto), debênture (crédito privado, sem FGC) e previdência
+   (VGBL/PGBL são reservas da seguradora, e por isso nem entra no card). */
+const FGC_LIMITE = 250000;
+const PALETA = ['--c1','--c2','--c3','--c4','--c5'];
+
+function renderIssuers(active) {
+  const fgc = active.filter(a => !manualA(a));
+  const byIssuer = new Map();
+  for (const a of fgc) {
+    const n = a.issuer || 'Tesouro Nacional';
+    const e = byIssuer.get(n) || { bal:0, tesouro:true, deb:true };
+    e.bal += a.balance || 0;
+    e.tesouro = e.tesouro && a.subtype === 'TREASURY';
+    e.deb = e.deb && a.subtype === 'DEBENTURES';
+    byIssuer.set(n, e);
+  }
+  let ci = 0; // a cor do ciclo só é consumida por linha coberta: a vermelha não gasta índice
+  document.getElementById('issuers').innerHTML = [...byIssuer.entries()]
+    .sort((a,b) => b[1].bal - a[1].bal)
+    .map(([n, e]) => {
+      const alerta = e.deb || e.bal > FGC_LIMITE;
+      const cor = alerta ? 'var(--danger)' : `var(${PALETA[ci++ % PALETA.length]})`;
+      const folga = e.tesouro ? ['sem teto','free']
+        : e.deb ? ['sem FGC','none']
+        : e.bal > FGC_LIMITE ? ['acima do teto','none']
+        : ['folga ' + Math.round((FGC_LIMITE - e.bal)/1000) + 'k',''];
+      return `<div class="issuer">
+        <span class="name">${esc(n.replace(/ S\.?A\.?$| S\/A$/i,''))}</span>
+        <div class="track"><div class="fill" style="width:${Math.min(100, e.bal/FGC_LIMITE*100)}%;background:${cor}"></div></div>
+        <span class="val">${BRL(e.bal)}</span>
+        <span class="folga ${folga[1]}">${folga[0]}</span>
+      </div>`;
+    }).join('');
+
+  const prev = active.filter(manualA).reduce((s,a)=>s+(a.balance||0),0);
+  const partes = [];
+  if (prev > 0) partes.push(`previdência (${BRL(prev)}) fora: não é coberta pelo FGC`);
+  if ([...byIssuer.values()].some(e => e.deb)) partes.push('debênture não tem cobertura');
+  document.getElementById('issuersNote').textContent = partes.join(' · ');
 }
 
 /* ---------- Detalhe do ativo ----------
@@ -663,6 +1024,13 @@ function prazo(dueDate) {
   return 'faltam ' + p.join(' e ');
 }
 
+/* Vencimento próximo (< 6 meses) sai em âmbar na tabela de ativos */
+const venceLogo = dueDate => {
+  if (!dueDate) return false;
+  const meses = (new Date(dueDate) - Date.now()) / 2629800000;
+  return meses < 6;
+};
+
 const dItem = (l, v, s) => `<div><div class="l">${l}</div><div class="v">${v}${s ? `<small>${s}</small>` : ''}</div></div>`;
 
 function movHTML(t) {
@@ -675,7 +1043,7 @@ function movHTML(t) {
   const qtd = porUnidade ? ` · ${NUM(t.quantity, 2)} un. a ${BRL2(t.value)}` : '';
   return `<div class="mov">
       <div><div class="t">${label}</div><div class="d">${dBR(t.tradeDate || t.date)}${qtd}</div></div>
-      <div class="a" style="color:var(${credito ? '--pre' : '--ipca'})">${valor == null ? '—' : BRL2(valor)}</div>
+      <div class="a" style="color:var(${credito ? '--pri' : '--warn'})">${valor == null ? '—' : BRL2(valor)}</div>
     </div>`;
 }
 
@@ -778,7 +1146,7 @@ function flashMarcacao(resp) {
    passou a ser a soma dos aportes — e o dinheiro novo cai no dia em que entrou,
    não no dia em que alguém abriu o app para conferir. */
 /* Campo de data: input nativo + o valor reescrito por cima em DD/MM/AAAA (ver
-   `.datef` no CSS). `syncDateFields` mantém os dois em dia. */
+   `.datef` no CSS). */
 const dateField = (label) => `
   <div><label>${label}</label>
     <div class="datef">
@@ -823,7 +1191,7 @@ function manualDetailHTML(a) {
   const itens = [
     dItem('Saldo', BRL2(a.balance), 'valor da última marcação'),
     dItem('Aplicado', BRL2(a.amountOriginal || 0), `soma de ${flows.length} aporte${flows.length === 1 ? '' : 's'}`),
-    dItem('Rendimento', `<span style="color:var(${profit >= 0 ? '--pre' : '--red'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
+    dItem('Rendimento', `<span style="color:var(${profit >= 0 ? '--pri' : '--danger'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
       a.amountOriginal ? NUM(profit / a.amountOriginal * 100) + '% sobre o aplicado' : ''),
     dItem('Última marcação', dBR(a.markedAt), desde(a.markedAt)),
   ];
@@ -860,7 +1228,7 @@ function manualDetailHTML(a) {
     html += `<div class="dsec">Aportes e resgates (${flows.length})</div>` + flows.slice(0, 24).map(f => `
       <div class="mark">
         <div class="d">${dBR(f.date)}</div>
-        <div class="a" style="color:var(${f.amount >= 0 ? '--pre' : '--ipca'})">${f.amount >= 0 ? '+' : ''}${BRL2(f.amount)}</div>
+        <div class="a" style="color:var(${f.amount >= 0 ? '--pri' : '--warn'})">${f.amount >= 0 ? '+' : ''}${BRL2(f.amount)}</div>
         <button data-delflow="${a.id}" data-flow-id="${f.id}" aria-label="remover aporte de ${dBR(f.date)}">×</button>
       </div>`).join('');
   }
@@ -878,7 +1246,7 @@ function detailHTML(a) {
     dItem('Saldo líquido', BRL2(a.balance), 'já sem impostos e taxas'),
     dItem('Valor bruto', BRL2(a.amount)),
     dItem('Aplicado', BRL2(a.amountOriginal || 0)),
-    dItem('Rendimento bruto', `<span style="color:var(${profit >= 0 ? '--pre' : '--red'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
+    dItem('Rendimento bruto', `<span style="color:var(${profit >= 0 ? '--pri' : '--danger'})">${profit >= 0 ? '+' : ''}${BRL2(profit)}</span>`,
       a.amountOriginal ? NUM(profit / a.amountOriginal * 100) + '% sobre o aplicado' : ''),
     dItem('IR provisionado', isento(a) ? 'isento' : BRL2(a.taxes || 0)),
     // `taxes2` (tributo financeiro) só aparece em parte dos papéis; omitir quando zero
@@ -889,8 +1257,8 @@ function detailHTML(a) {
   ];
   if (a.quantity > 0 && a.value != null && Math.abs(a.value - 1) > 0.005)
     itens.push(dItem('Posição', `${NUM(a.quantity, 2)} un.`, 'a ' + BRL2(a.value)));
-  if (a.issuer) itens.push(dItem('Emissor', a.issuer, a.issuerCNPJ || ''));
-  if (a.code || a.isin) itens.push(dItem('Código', a.code || a.isin, a.isin && a.code !== a.isin ? 'ISIN ' + a.isin : ''));
+  if (a.issuer) itens.push(dItem('Emissor', esc(a.issuer), a.issuerCNPJ || ''));
+  if (a.code || a.isin) itens.push(dItem('Código', esc(a.code || a.isin), a.isin && a.code !== a.isin ? 'ISIN ' + esc(a.isin) : ''));
 
   let html = `<div class="detail"><div class="dgrid">${itens.join('')}</div>`;
 
@@ -898,9 +1266,11 @@ function detailHTML(a) {
   const w = perf && perf.assets && perf.assets[a.id] && perf.assets[a.id].windows;
   if (w) {
     const cols = [['mesAtual','Mês'],['mesAnterior','Mês ant.'],['ano','Ano'],['m12','12m']];
-    html += `<div class="dsec">Rentabilidade ${isento(a) ? '(bruto equivalente)' : ''}</div>
-      <div class="dgrid">${cols.map(([k, l]) =>
-        dItem(l, w[k] ? PCT2(w[k].accGrossUp) : '—')).join('')}</div>`;
+    html += `<div class="dsec">Rentabilidade ${isento(a) && state.grossup ? '(bruto equivalente)' : ''}</div>
+      <div class="dgrid">${cols.map(([k, l]) => {
+        const v = gAcc(w[k]);
+        return dItem(l, v == null ? '—' : PCT2(v));
+      }).join('')}</div>`;
   }
 
   // movimentações: 'loading' até a resposta; a lista fica em txCache e sobrevive ao re-render
@@ -935,57 +1305,87 @@ async function loadTx(id) {
   renderAssets();
 }
 
-/* Lista de ativos. Ordenação por valor (saldo desc) ou por tipo (agrupa por
-   subtype, e dentro do grupo pelo saldo). */
+/* Tabela de ativos, comparável linha a linha. Ordenação por valor (saldo desc),
+   tipo (agrupa por subtype), vencimento (o que vence antes primeiro; sem
+   vencimento vai para o fim) ou mês (rentabilidade do mês corrente). */
 function renderAssets(active) {
   if (active) assetsCache = active;
   const lista = [...(assetsCache || [])];
+  const mesDe = a => {
+    const w = perf && perf.assets && perf.assets[a.id] && perf.assets[a.id].windows.mesAtual;
+    return gAcc(w);
+  };
   if (state.assetSort === 'tipo') {
     const ordem = Object.keys(SUB);
     lista.sort((a,b) => {
       const ia = ordem.indexOf(a.subtype), ib = ordem.indexOf(b.subtype);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || b.balance - a.balance;
     });
+  } else if (state.assetSort === 'vencimento') {
+    lista.sort((a,b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || b.balance - a.balance);
+  } else if (state.assetSort === 'mes') {
+    lista.sort((a,b) => {
+      const ma = mesDe(a), mb = mesDe(b);
+      if (ma == null && mb == null) return b.balance - a.balance;
+      if (ma == null) return 1;
+      if (mb == null) return -1;
+      return mb - ma;
+    });
   } else {
     lista.sort((a,b) => b.balance - a.balance);
   }
 
+  document.getElementById('assetsTitle').textContent = 'Ativos · ' + lista.length;
   chips('assetSort', ASSET_SORTS, state.assetSort, v => { state.assetSort = v; renderAssets(); });
-  document.getElementById('assets').innerHTML = lista.map(a => {
-    const profit = a.amount - (a.amountOriginal||0);
+
+  const linhas = lista.map(a => {
     const k = ix(a);
     const open = expandedAssets.has(a.id);
-    return `<div class="asset-row">
-      <button class="asset" data-id="${a.id}" aria-expanded="${open}">
-        <div class="info">
-          <div class="tags">
-            <span class="tag ix" style="--c:var(${IX_VAR[k]})">${k}</span>
-            <span class="tag sub">${SUB[a.subtype]||esc(a.subtype)}</span>
-            ${isento(a)?'<span class="isento">isento IR</span>':''}
-            ${manualA(a)?'<span class="manual-tag">manual</span>':''}
-          </div>
-          <div class="t">${titleOf(a)}</div>
-          <div class="d">${rateLabel(a)}${a.dueDate ? ' · vence ' + dBR(a.dueDate) : ''}</div>
+    const mes = mesDe(a);
+    const share = totalBalance > 0 ? a.balance/totalBalance*100 : 0;
+    const row = `<tr class="arow" data-id="${esc(a.id)}" role="button" tabindex="0" aria-expanded="${open}">
+      <td class="name">
+        <div class="aname">
+          <span class="tag" style="--c:var(${IX_VAR[k]})">${IX_CURTO[k]}</span>
+          <span class="t">${titleOf(a)}</span>
+          <span class="s">${manualA(a) ? '' : (SUB[a.subtype] || esc(a.subtype))}</span>
+          ${isento(a) ? '<span class="selo">isento IR</span>' : ''}
+          ${manualA(a) ? '<span class="selo man">manual</span>' : ''}
         </div>
-        <div class="money">
-          <div class="b">${BRL2(a.balance)}</div>
-          <div class="p" style="color:var(${profit>=0?'--pre':'--red'})">${profit>=0?'+':''}${BRL(profit)}</div>
-        </div>
-        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
-      </button>
-      ${open ? detailHTML(a) : ''}
-    </div>`;
+      </td>
+      <td style="text-align:left">${rateLabel(a)}</td>
+      <td class="due ${venceLogo(a.dueDate) ? 'soon' : ''}">${a.dueDate ? dBR(a.dueDate) : '—'}</td>
+      <td class="bal">${BRL2(a.balance)}</td>
+      <td class="mes ${mes == null ? '' : mes >= 0 ? 'up' : 'down'}">${mes == null ? '—' : PCT2(mes)}</td>
+      <td>${PCT(share)}</td>
+      <td class="chev">${CHEV}</td>
+    </tr>`;
+    return row + (open ? `<tr><td class="dcell" colspan="7">${detailHTML(a)}</td></tr>` : '');
   }).join('');
 
-  document.querySelectorAll('#assets .asset').forEach(btn =>
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      if (expandedAssets.has(id)) expandedAssets.delete(id);
-      // ativo manual não tem movimentações na Pluggy: o id nem passa na validação
-      // da rota, e a chamada só renderia um erro no painel
-      else { expandedAssets.add(id); if (!manualA(invById[id] || {})) loadTx(id); }
-      renderAssets();
-    }));
+  document.getElementById('assets').innerHTML = `<table class="at">
+    <thead><tr>
+      <th class="l">Ativo</th><th class="l">Taxa</th><th>Vence</th><th>Saldo</th><th>Mês</th><th>% cart.</th><th></th>
+    </tr></thead>
+    <tbody>${linhas}</tbody></table>`;
+
+  const toggle = tr => {
+    const id = tr.dataset.id;
+    if (expandedAssets.has(id)) expandedAssets.delete(id);
+    // ativo manual não tem movimentações na Pluggy: o id nem passa na validação
+    // da rota, e a chamada só renderia um erro no painel
+    else { expandedAssets.add(id); if (!manualA(invById[id] || {})) loadTx(id); }
+    renderAssets();
+  };
+  document.querySelectorAll('#assets tr.arow').forEach(tr => {
+    tr.addEventListener('click', () => toggle(tr));
+    tr.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(tr); }
+    });
+  });
+  // clique dentro do detalhe (formulários, botões) não pode fechar a linha
+  document.querySelectorAll('#assets td.dcell').forEach(td =>
+    td.addEventListener('click', e => e.stopPropagation()));
 
   bindManualForms(document.getElementById('assets'));
 }
