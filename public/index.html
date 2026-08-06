@@ -330,14 +330,14 @@ const issuerName = a => esc((a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$
    faz sentido para papel da Pluggy sem emissor (Tesouro Direto). */
 const titleOf = a => manualA(a) ? esc(a.name) : issuerName(a);
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-const PERIODS = [['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
+const PERIODS = [['mtd','Mês'],['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
 const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']];
 /* Carteira é sempre preta; os benchmarks usam matizes saturadas e bem separadas
    entre si e do preto — a 1px, tons escuros (o âmbar e o vinho antigos) colavam
    na linha da carteira. Só um benchmark aparece por vez. */
 const BENCH_COLOR = { cdi:'#0B6FEF', ipca:'#F97316', selic:'#9333EA', ibov:'#DB2777' };
 const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo']];
-const state = { period:'ytd', bench:'cdi', grossup:true, assetSort:'valor' };
+const state = { period:'mtd', bench:'cdi', grossup:true, assetSort:'valor' };
 let assetsCache = null;
 const expanded = new Set();          // categorias abertas na tabela "Meus produtos"
 const expandedAssets = new Set();    // ativos com o detalhe aberto
@@ -440,7 +440,7 @@ function renderPerfChart() {
   draw('chPerf','line',{
     labels: dates.map(d => new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
     datasets: [
-      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:.25 },
+      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
       ...(semDado ? [] : [
         { label:bench, data: stepMap(dates, bSerie), borderColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
       ]),

@@ -244,6 +244,8 @@ test("monthlyBreakdown: menos de dois snapshots ⇒ sem barras", () => {
 /* ---------- Seletor de período ---------- */
 
 test("periodStartISO", () => {
+  assert.equal(periodStartISO("mtd", "2026-08-02"), "2026-08-01");
+  assert.equal(periodStartISO("mtd", "2026-01-31"), "2026-01-01");
   assert.equal(periodStartISO("ytd", "2026-08-02"), "2026-01-01");
   assert.equal(periodStartISO("3m", "2026-08-02"), "2026-05-02");
   assert.equal(periodStartISO("12m", "2026-08-02"), "2025-08-02");

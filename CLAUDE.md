@@ -78,7 +78,7 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 ## Rentabilidade (spec-rentabilidade.md)
 
 - Cálculos puros em `lib/performance.js` (TWR/Modified Dietz, benchmarks acumulados, gross up, decomposição mensal), testados em `test/performance.test.js` (`npm test`, runner nativo do Node).
-- `GET /api/performance?period=ytd|3m|6m|12m|24m|max` entrega hero, séries dos gráficos, barras mensais e tabela por categoria/ativo; a resposta traz as versões com e sem gross up (toggle é client-side).
+- `GET /api/performance?period=mtd|ytd|3m|6m|12m|24m|max` entrega hero, séries dos gráficos, barras mensais e tabela por categoria/ativo; a resposta traz as versões com e sem gross up (toggle é client-side).
 - Fluxo diário: quando o payload tem os ativos, resgate total sai pelo valor **bruto** do dia anterior (evita o artefato do Δ`total_original`, que só captura principal).
 
 ## Modo demo (dados fictícios)

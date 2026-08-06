@@ -25,7 +25,7 @@ O manifest faz o app abrir em tela cheia (standalone), sem barra do Safari.
 
 - `GET /api/portfolio` — carteira atual (grava snapshot do dia; usa cache SQLite como fallback se a Pluggy estiver fora)
 - `GET /api/history` — série de snapshots para o gráfico de evolução
-- `GET /api/performance?period=ytd|3m|6m|12m|24m|max` — rentabilidade (TWR), benchmarks e tabela por categoria/ativo
+- `GET /api/performance?period=mtd|ytd|3m|6m|12m|24m|max` — rentabilidade (TWR), benchmarks e tabela por categoria/ativo
 - `GET /api/investments/:id/transactions` — movimentações do ativo (proxy da Pluggy, cache de 12h no SQLite)
 - `GET /api/benchmarks?from=YYYY-MM-DD` — séries CDI/IPCA/Selic (SGS Bacen) e IBOV (Yahoo), cacheadas no SQLite e atualizadas 1x/dia
 - `GET /api/health` — healthcheck (usado pelo Docker; não chama a Pluggy)
