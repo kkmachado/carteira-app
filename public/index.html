@@ -257,6 +257,19 @@ const rateLabel = a => {
 };
 Chart.defaults.font.family = "'IBM Plex Mono', monospace";
 Chart.defaults.font.size = 11;
+/* Legenda com bolinha sólida em vez do retângulo padrão, em todos os tipos de
+   gráfico. Nas linhas, o marcador é pintado com o `backgroundColor` do dataset
+   (não com o `borderColor`): sem defini-lo, o Chart.js cai no cinza translúcido
+   padrão e a bolinha sai apagada. Por isso os datasets de linha repetem a cor
+   em `backgroundColor` (não vazam para a área: `fill` é false por padrão). */
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+/* O raio da bolinha não é configurável direto: o Chart.js deriva de `boxHeight`
+   como `boxHeight * √2 / 2`, e o padrão (= tamanho da fonte, 11px) dá 15px de
+   diâmetro. Invertendo a conta, 8/√2 fecha em 8px. `boxWidth` é só o espaço
+   horizontal antes do texto — a 40px padrão o rótulo ficava longe da bolinha. */
+Chart.defaults.plugins.legend.labels.boxHeight = 8 / Math.SQRT2;
+Chart.defaults.plugins.legend.labels.boxWidth = 8;
 let charts = {};
 
 /* ---------- Tema claro/escuro ----------
@@ -440,9 +453,9 @@ function renderPerfChart() {
   draw('chPerf','line',{
     labels: dates.map(d => new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})),
     datasets: [
-      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
+      { label:'Carteira', data: twr.map(p => p.acc*100), borderColor:'var(--ink)', backgroundColor:'var(--ink)', borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
       ...(semDado ? [] : [
-        { label:bench, data: stepMap(dates, bSerie), borderColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
+        { label:bench, data: stepMap(dates, bSerie), borderColor:BENCH_COLOR[state.bench], backgroundColor:BENCH_COLOR[state.bench], borderWidth:1, pointRadius:0, pointHoverRadius:3, tension:0 },
       ]),
     ]
   },{
@@ -563,7 +576,7 @@ async function load() {
   },{ cutout:'62%', plugins:{ legend:{ position:'right', labels:{ color:'var(--ink2)',
     // o Chart.js pinta o texto da legenda com legendItem.fontColor (não com labels.color)
     // quando generateLabels é customizado — sem isso, cai no preto padrão do canvas
-    generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], fontColor:c.options.plugins.legend.labels.color, lineWidth:0 })) } } } });
+    generateLabels: c => c.data.labels.map((l,i)=>({ text:`${l}  ${PCT(c.data.datasets[0].data[i]/bal*100)}`, fillStyle:c.data.datasets[0].backgroundColor[i], fontColor:c.options.plugins.legend.labels.color, pointStyle:'circle', lineWidth:0 })) } } } });
 
   /* Vencimentos por ano — só papel com vencimento (previdência não tem: o resgate
      é a qualquer tempo, e sem o filtro o ano viraria "NaN") */
