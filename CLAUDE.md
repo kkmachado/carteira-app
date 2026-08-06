@@ -72,6 +72,8 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 
 - **Respostas e mensagens de commit em português.**
 - Frontend leve: um único `index.html` com CSS e JS inline; Chart.js via CDN.
+- **Visual: CARBON BI** (`design_handoff_investimentos_abas/`) — tokens no bloco `:root`, Inter + JetBrains Mono, verde `hsl(142 70% 45%)` como acento. **Dark-only, sem toggle de tema**: o design system não tem versão clara e o app não inventa uma. Ícones são SVG inline — nada de biblioteca por CDN, o app roda só na rede local e precisa funcionar offline.
+- Hero de rendimento fixo no topo + 4 abas (Visão geral · Rentabilidade · Ativos · Risco). A aba escolhida fica em `localStorage.tab` (e no hash) para o PWA reabrir onde parou; trocar de aba não refaz fetch. Gráfico dentro de aba escondida nasce com 0px de canvas — por isso `renderTabs()` chama `resize()` em todos.
 - Cálculos de agregação/performance no backend (módulos em `lib/`); o frontend só apresenta.
 - Não simular histórico passado: gráficos e comparativos usam apenas o range de snapshots existente.
 
@@ -79,7 +81,8 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 
 - Cálculos puros em `lib/performance.js` (TWR/Modified Dietz, benchmarks acumulados, gross up, decomposição mensal), testados em `test/performance.test.js` (`npm test`, runner nativo do Node).
 - `GET /api/performance?period=mtd|ytd|3m|6m|12m|24m|max` entrega hero, séries dos gráficos, barras mensais e tabela por categoria/ativo; a resposta traz as versões com e sem gross up, mas a tela usa **sempre** a com gross up — sem ele, LCA/LCI apareceriam com rendimento líquido ao lado de CDBs brutos e do CDI. O toggle que existia no card do topo foi removido.
-- O card do topo mostra, nessa ordem: o rendimento do período em destaque, o % do CDI, e uma régua com o acumulado de CDI/IPCA/Selic/IBOV no mesmo período (calculada no frontend, do último ponto de cada série de `benchmarks` — elas já vêm recortadas pelo range). Série vazia vira `—`, não 0%: o IPCA é mensal e o mês parcial do início costuma ficar de fora.
+- O hero mostra, nessa ordem: o rendimento do período em destaque, o % acumulado, o % do CDI e o saldo líquido à direita; os chips de período ficam no rodapé do card. O acumulado do benchmark no período (último ponto da série, que já vem recortada pelo range) aparece na legenda do gráfico "Carteira vs …". Série vazia vira `—`, não 0%: o IPCA é mensal e o mês parcial do início costuma ficar de fora.
+- Concentração por emissor traz a folga do FGC por instituição. O trilho é escalado pelo **teto de R$ 250 mil**, não pelo maior emissor — é o teto que se quer ler. Tesouro é `sem teto` (risco soberano), debênture é `sem FGC`, e linha vermelha (emissor acima do teto ou sem cobertura) não consome cor do ciclo da paleta.
 - Fluxo diário: quando o payload tem os ativos, resgate total sai pelo valor **bruto** do dia anterior (evita o artefato do Δ`total_original`, que só captura principal).
 
 ## Modo demo (dados fictícios)
