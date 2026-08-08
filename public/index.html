@@ -139,7 +139,10 @@
   /* ---------- O que puxou o mês ---------- */
   .pull { display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid var(--border); }
   .pull .info { flex:1; min-width:0; }
-  .pull .t { font-size:13px; font-weight:600; }
+  /* o nome e os selos saem de nomeTags(), os mesmos da lista de Ativos; aqui só
+     o corpo do card pede um nome um ponto maior */
+  .pull .aname { margin-bottom:1px; }
+  .pull .aname .t { font-size:13px; }
   .pull .d { font-size:11.5px; color:var(--mut); }
   .pull .money { text-align:right; }
   .pull .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:13.5px; }
@@ -151,7 +154,6 @@
      acompanha a troca de tema sem re-renderizar a lista */
   .tag { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; padding:2px 5px; border-radius:5px;
          white-space:nowrap; color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); }
-  .tag.lg { font-size:10.5px; padding:3px 6px; border-radius:6px; }
   .selo { font-size:10px; font-weight:600; border-radius:5px; padding:1px 5px; white-space:nowrap;
           color:var(--pri); background:var(--pri-dim); }
   .selo.man { color:var(--ix-man); background:color-mix(in srgb, var(--ix-man) 14%, transparent); }
@@ -176,6 +178,7 @@
                 font-size:11.5px; text-align:right; color:var(--mut); padding:9px 8px;
                 border-bottom:1px solid var(--border); white-space:nowrap; }
   table.at td.name { text-align:left; white-space:normal; }
+  table.at td.rate { text-align:left; }
   table.at td.bal { font-size:12.5px; color:var(--fg); }
   table.at td.due.soon { color:var(--warn); }
   table.at td.mes.up { color:var(--pri); }
@@ -190,9 +193,50 @@
   table.at td.dcell { padding:0 8px; border-bottom:1px solid var(--border);
                       text-align:left; white-space:normal; font-family:'Inter',sans-serif;
                       font-size:13px; color:var(--fg); }
-  .aname { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-  .aname .t { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--fg); }
-  .aname .s { font-family:'Inter',sans-serif; font-size:11px; color:var(--mut); }
+  .aname { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+  .aname .t { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--fg);
+              letter-spacing:-.01em; }
+  /* tipo e indexador são rótulos, não texto: chips de mesma altura logo depois do
+     nome, o tipo neutro e o indexador colorido */
+  .aname .s { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.02em;
+              color:var(--mut); background:var(--sec); border-radius:5px; padding:2px 5px; white-space:nowrap; }
+  .aname .tag, .aname .s, .aname .selo { position:relative; top:-1px; }
+  /* No iPhone as sete colunas não cabem: a tabela vira lista de blocos, sem
+     rolagem horizontal. Duas linhas por ativo — nome + saldo em cima, taxa,
+     vencimento, mês e fatia embaixo — e o cabeçalho some (os números se
+     explicam pelo formato: data, R$, %). */
+  @media(max-width:640px){
+    #assets.tablewrap { overflow-x:visible; margin:0; }
+    table.at { display:block; min-width:0; }
+    table.at thead { display:none; }
+    table.at tbody { display:block; }
+    table.at tr { display:block; }
+    table.at td { display:block; padding:0; border-bottom:none; text-align:left;
+                  font-size:11px; white-space:nowrap; }
+    /* as duas últimas colunas são fixas: cada linha é um grid próprio, então sem
+       largura declarada o mês e a fatia dançariam de um ativo para o outro */
+    table.at tr.arow { display:grid; grid-template-columns:minmax(0,auto) auto 1fr 52px 44px;
+                       align-items:baseline; column-gap:6px; row-gap:5px;
+                       padding:12px 28px 12px 0; position:relative;
+                       border-bottom:1px solid var(--border); }
+    table.at tr.arow:hover td { background:none; }
+    table.at tr.arow:active { background:color-mix(in srgb, var(--pri) 6%, transparent); }
+    table.at td.name { grid-area:1 / 1 / 2 / 4; }
+    table.at td.bal  { grid-area:1 / 4 / 2 / 6; text-align:right; font-size:13px; }
+    /* a taxa é o único campo elástico da segunda linha: cede com reticências em
+       vez de estourar o grid e empurrar o saldo para debaixo do chevron */
+    table.at td.rate { grid-area:2 / 1 / 3 / 2; overflow:hidden; text-overflow:ellipsis; }
+    table.at td.due  { grid-area:2 / 2 / 3 / 3; }
+    table.at td.mes  { grid-area:2 / 4 / 3 / 5; text-align:right; }
+    table.at td.share{ grid-area:2 / 5 / 3 / 6; text-align:right; color:var(--subtle); }
+    /* sem cabeçalho, os campos da segunda linha se separam por ponto médio */
+    table.at td.rate::after, table.at td.mes::after { content:'·'; color:var(--subtle);
+                                                      margin-left:6px; }
+    table.at td.chev { position:absolute; right:0; top:14px; width:auto; padding:0; }
+    table.at td.dcell { display:block; padding:0; }
+    .aname .t { font-size:13px; }
+  }
+
   .afoot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
            border-top:1px solid var(--border); margin-top:8px; padding-top:11px; }
   .afoot .hint { font-size:11px; color:var(--mut); }
@@ -485,6 +529,15 @@ const issuerName = a => esc((a.issuer || 'Tesouro Nacional').replace(/ S\.?A\.?$
 /* Ativo manual tem nome próprio; o fallback "Tesouro Nacional" do issuerName só
    faz sentido para papel da Pluggy sem emissor (Tesouro Direto). */
 const titleOf = a => manualA(a) ? esc(a.name) : issuerName(a);
+/* Identificação do ativo: nome, tipo e indexador, nessa ordem. Mora aqui porque
+   a lista de Ativos e o card "O que puxou o mês" mostram a mesma coisa — em
+   dois lugares o formato acabaria divergindo. */
+const nomeTags = a => `<div class="aname">
+  <span class="t">${titleOf(a)}</span>
+  ${manualA(a) ? '' : `<span class="s">${SUB[a.subtype] || esc(a.subtype)}</span>`}
+  <span class="tag" style="--c:var(${IX_VAR[ix(a)]})">${IX_CURTO[ix(a)]}</span>
+  ${manualA(a) ? '<span class="selo man">manual</span>' : ''}
+</div>`;
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const MESES_L = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const PERIODS = [['mtd','Mês'],['ytd','Ano'],['3m','3m'],['6m','6m'],['12m','12m'],['24m','24m'],['max','Máx']];
@@ -685,7 +738,6 @@ function renderPulled() {
   const lista = assetsCache || [];
   if (!lista.length) { el.innerHTML = ''; return; }
   const linhas = [];
-  const tag = (label, varName) => `<span class="tag lg" style="--c:var(${varName})">${label}</span>`;
 
   // 1. melhor rentabilidade do mês (manuais ficam de fora: só rendem no dia da marcação)
   if (perf && perf.assets) {
@@ -698,10 +750,9 @@ function renderPulled() {
       if (!melhor || acc > melhor.acc) melhor = { a, acc, income: w.income };
     }
     if (melhor) linhas.push(`<div class="pull">
-      ${tag(ix(melhor.a), IX_VAR[ix(melhor.a)])}
       <div class="info">
-        <div class="t">${titleOf(melhor.a)} · ${rateLabel(melhor.a)}</div>
-        <div class="d">melhor rentabilidade do mês</div>
+        ${nomeTags(melhor.a)}
+        <div class="d">melhor rentabilidade do mês · ${rateLabel(melhor.a)}</div>
       </div>
       <div class="money">
         <div class="a" style="color:var(--pri)">${PCT2(melhor.acc)}</div>
@@ -715,9 +766,8 @@ function renderPulled() {
   const prox = lista.filter(a => a.dueDate && a.dueDate.slice(0,10) >= hoje)
     .sort((a,b) => a.dueDate.localeCompare(b.dueDate))[0];
   if (prox) linhas.push(`<div class="pull">
-    ${tag(ix(prox), IX_VAR[ix(prox)])}
     <div class="info">
-      <div class="t">${titleOf(prox)} · ${SUB[prox.subtype] || esc(prox.subtype)}</div>
+      ${nomeTags(prox)}
       <div class="d">vence em ${dBR(prox.dueDate)} — ${prazo(prox.dueDate)}</div>
     </div>
     <div class="money"><div class="a">próximo</div><div class="b">${BRL(prox.balance)}</div></div>
@@ -726,9 +776,8 @@ function renderPulled() {
   // 3. previdência manual
   for (const a of lista.filter(manualA)) {
     linhas.push(`<div class="pull">
-      ${tag('manual', '--ix-man')}
       <div class="info">
-        <div class="t">${titleOf(a)}</div>
+        ${nomeTags(a)}
         <div class="d">marcada em ${dBR(a.markedAt).slice(0,5)} — fora do TWR da carteira</div>
       </div>
       <div class="money">
@@ -1250,25 +1299,16 @@ function renderAssets(active) {
   chips('assetSort', ASSET_SORTS, state.assetSort, v => { state.assetSort = v; renderAssets(); });
 
   const linhas = lista.map(a => {
-    const k = ix(a);
     const open = expandedAssets.has(a.id);
     const mes = mesDe(a);
     const share = totalBalance > 0 ? a.balance/totalBalance*100 : 0;
     const row = `<tr class="arow" data-id="${esc(a.id)}" role="button" tabindex="0" aria-expanded="${open}">
-      <td class="name">
-        <div class="aname">
-          <span class="tag" style="--c:var(${IX_VAR[k]})">${IX_CURTO[k]}</span>
-          <span class="t">${titleOf(a)}</span>
-          <span class="s">${manualA(a) ? '' : (SUB[a.subtype] || esc(a.subtype))}</span>
-          ${isento(a) ? '<span class="selo">isento IR</span>' : ''}
-          ${manualA(a) ? '<span class="selo man">manual</span>' : ''}
-        </div>
-      </td>
-      <td style="text-align:left">${rateLabel(a)}</td>
-      <td class="due ${venceLogo(a.dueDate) ? 'soon' : ''}">${a.dueDate ? dBR(a.dueDate) : '—'}</td>
+      <td class="name">${nomeTags(a)}</td>
+      <td class="rate">${rateLabel(a)}</td>
+      <td class="due ${venceLogo(a.dueDate) ? 'soon' : ''} ${a.dueDate ? '' : 'none'}">${a.dueDate ? dBR(a.dueDate) : '—'}</td>
       <td class="bal">${BRL2(a.balance)}</td>
       <td class="mes ${mes == null ? '' : mes >= 0 ? 'up' : 'down'}">${mes == null ? '—' : PCT2(mes)}</td>
-      <td>${PCT(share)}</td>
+      <td class="share">${PCT(share)}</td>
       <td class="chev">${CHEV}</td>
     </tr>`;
     return row + (open ? `<tr><td class="dcell" colspan="7">${detailHTML(a)}</td></tr>` : '');
