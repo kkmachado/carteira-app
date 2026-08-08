@@ -86,6 +86,66 @@ test("resgate total de um ativo (com assets): sai pelo bruto, sem artefato", () 
   close(ret.r, 2 / 500);
 });
 
+test("resgate parcial: sai pelo bruto pro-rata, não pelo principal abatido", () => {
+  // A: 1000 de principal valendo 1100 (10% de rendimento acumulado). Resgate de 10%
+  // do papel: a Pluggy abate 100 do original, mas saem 110 de bruto.
+  const days = [
+    {
+      date: "2026-07-01",
+      gross: 1600,
+      original: 1500,
+      assets: [
+        { id: "A", gross: 1100, original: 1000 },
+        { id: "B", gross: 500, original: 500 },
+      ],
+    },
+    {
+      date: "2026-07-02",
+      gross: 1492,
+      original: 1400,
+      assets: [
+        { id: "A", gross: 990, original: 900 },
+        { id: "B", gross: 502, original: 500 },
+      ],
+    },
+  ];
+  const [ret] = dailyReturns(days);
+  close(ret.flow, -110); // não -100: os juros da fatia resgatada saíram junto
+  close(ret.income, 2); // só o rendimento do B — o saque não vira prejuízo
+  close(ret.r, 2 / (1600 - 110));
+});
+
+test("resgate parcial de ativo sem rendimento: pro-rata cai no próprio principal", () => {
+  const days = [
+    { date: "2026-07-01", gross: 1000, original: 1000, assets: [{ id: "A", gross: 1000, original: 1000 }] },
+    { date: "2026-07-02", gross: 600, original: 600, assets: [{ id: "A", gross: 600, original: 600 }] },
+  ];
+  const [ret] = dailyReturns(days);
+  close(ret.flow, -400);
+  close(ret.income, 0);
+});
+
+test("aporte em ativo existente continua entrando pelo Δoriginal", () => {
+  const days = [
+    { date: "2026-07-01", gross: 1100, original: 1000, assets: [{ id: "A", gross: 1100, original: 1000 }] },
+    { date: "2026-07-02", gross: 1601, original: 1500, assets: [{ id: "A", gross: 1601, original: 1500 }] },
+  ];
+  const [ret] = dailyReturns(days);
+  close(ret.flow, 500); // aporte não é pro-rata: entra pelo valor aplicado
+  close(ret.income, 1);
+});
+
+test("resgate parcial de ativo com principal zerado não divide por zero", () => {
+  const days = [
+    { date: "2026-07-01", gross: 50, original: 0, assets: [{ id: "A", gross: 50, original: 0 }] },
+    { date: "2026-07-02", gross: 20, original: -10, assets: [{ id: "A", gross: 20, original: -10 }] },
+  ];
+  const [ret] = dailyReturns(days);
+  assert.ok(Number.isFinite(ret.flow));
+  assert.equal(ret.flow, -10); // sem base para pro-rata, cai no Δoriginal
+  assert.ok(Number.isFinite(ret.r));
+});
+
 test("resgate total sem assets (fallback Δoriginal) não quebra, mas gera artefato", () => {
   const days = [
     { date: "2026-07-01", gross: 1600, original: 1500 },
