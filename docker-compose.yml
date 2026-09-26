@@ -10,6 +10,8 @@ services:
       - PLUGGY_CLIENT_SECRET=${PLUGGY_CLIENT_SECRET}
       - PLUGGY_ITEM_ID=${PLUGGY_ITEM_ID}
       - PORT=${PORT}
+      - CARD_HOLDERS=${CARD_HOLDERS}
+      - GASTOS_IGNORAR_CONTAS=${GASTOS_IGNORAR_CONTAS}
     volumes:
       - ./data:/app/data
     healthcheck:

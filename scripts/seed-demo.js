@@ -170,6 +170,145 @@ db.transaction(() => {
   }
 })();
 
+/* ---------- Gastos fictícios (conta corrente + cartão) ----------
+   Formato das tabelas que o server.js espelha da Pluggy (/v2/transactions,
+   /bills, /categories). Exercita os casos da tela: fatura com lançamento
+   atípico, estorno, compra internacional, parcelas futuras, fatura aberta,
+   pagamento da fatura pela conta (não pode contar em dobro) e aplicação. */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bank_accounts (id TEXT PRIMARY KEY, type TEXT NOT NULL, subtype TEXT, name TEXT,
+    number TEXT, balance REAL, credit_data TEXT, fetched_at TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS bank_txs (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, date TEXT NOT NULL,
+    amount REAL NOT NULL, status TEXT, category_id TEXT, description TEXT, bill_id TEXT, bill_forecast TEXT,
+    card_number TEXT, currency TEXT, amount_brl REAL, installment_n INTEGER, installment_total INTEGER,
+    payload TEXT NOT NULL, updated_at TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS card_bills (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, due_date TEXT NOT NULL,
+    total_amount REAL NOT NULL, min_payment REAL, payload TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS tx_categories (id TEXT PRIMARY KEY, parent_id TEXT, name_pt TEXT, fetched_at TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS gastos_sync (id INTEGER PRIMARY KEY CHECK (id = 1), last_sync_at TEXT, last_error TEXT);
+`);
+
+// PRNG determinístico: a demo sai igual a cada seed
+let semente = 42;
+const rnd = () => ((semente = (semente * 1103515245 + 12345) % 2147483648) / 2147483648);
+const entre = (a, b) => Math.round((a + rnd() * (b - a)) * 100) / 100;
+const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+
+const CATS = [
+  ["01000000", null, "Renda"], ["01010000", "01000000", "Salário"],
+  ["03000000", null, "Investimentos"], ["03020000", "03000000", "Renda fixa"],
+  ["04000000", null, "Transferência mesma titularidade"],
+  ["05000000", null, "Transferências"], ["05100000", "05000000", "Pagamento de cartão de crédito"],
+  ["08000000", null, "Compras"], ["08010000", "08000000", "Compras online"],
+  ["09000000", null, "Serviços digitais"], ["10000000", null, "Supermercado"],
+  ["11000000", null, "Alimentos e bebidas"], ["11010000", "11000000", "Restaurantes, bares e lanchonetes"],
+  ["17000000", null, "Moradia"], ["17010000", "17000000", "Aluguel"], ["17020000", "17000000", "Serviços de utilidade pública"],
+  ["17020002", "17020000", "Eletricidade"], ["18000000", null, "Saúde"], ["18020000", "18000000", "Farmácia"],
+  ["18040000", "18000000", "Hospitais, clínicas e laboratórios"], ["19000000", null, "Transporte"],
+  ["19050001", "19000000", "Postos de gasolina"], ["07000000", null, "Serviços"], ["07030000", "07000000", "Educação"],
+];
+const LOJAS = [
+  ["SUPERMERCADO DEMO", "10000000", 80, 600], ["HORTIFRUTI EXEMPLO", "10000000", 40, 250],
+  ["RESTAURANTE FICTICIO", "11010000", 60, 280], ["PADARIA MODELO", "11010000", 15, 60],
+  ["POSTO TESTE", "19050001", 150, 320], ["DROGARIA DEMO", "18020000", 30, 180],
+  ["LOJA ONLINE DEMO", "08010000", 50, 400], ["LIVRARIA EXEMPLO", "08000000", 40, 150],
+];
+const CARTAO = "demo-cartao", CONTA = "demo-conta";
+const addDias = (iso, d) => new Date(Date.parse(`${iso}T12:00:00Z`) + d * 86400000).toISOString().slice(0, 10);
+const fatura = (ym) => `${ym}-06`; // vencimento
+const hojeISO = new Date().toISOString().slice(0, 10);
+const mesDe = (k) => { const d = new Date(`${hojeISO.slice(0, 7)}-01T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + k); return d.toISOString().slice(0, 7); };
+
+const txsG = [];
+const billsG = [];
+const tx = (o) => txsG.push({ status: "POSTED", currency: "BRL", ...o });
+let nTx = 0;
+const id = () => `demo-tx-${++nTx}`;
+
+// faturas fechadas: 7 meses até a do mês corrente (se já venceu) + a aberta
+const ultimaFechada = Number(hojeISO.slice(8, 10)) >= 6 ? 0 : -1;
+const meses = Array.from({ length: 7 }, (_, i) => mesDe(ultimaFechada - 6 + i));
+const aberta = mesDe(ultimaFechada + 1);
+let anterior = null;
+for (const [i, ym] of [...meses, aberta].entries()) {
+  const venc = fatura(ym);
+  const fech = addDias(venc, -8);
+  const ini = addDias(fech, -30);
+  const isAberta = ym === aberta;
+  const billId = isAberta ? null : `demo-bill-${ym}`;
+  const cc = (extra = {}) => ({ accountId: CARTAO, billId, billForecast: ym, ...extra });
+  let soma = 0;
+  const compra = (desc, cat, valor, dia, card = pick(["1111", "1111", "2222"]), extra = {}) => {
+    soma += valor;
+    tx({ id: id(), ...cc(), date: `${addDias(ini, dia)}T03:00:00.000Z`, amount: valor, categoryId: cat,
+      description: desc, cardNumber: card, status: isAberta ? "PENDING" : "POSTED", ...extra });
+  };
+  const n = isAberta ? 25 : 45 + Math.floor(rnd() * 20);
+  for (let k = 0; k < n; k++) {
+    const [loja, cat, a, b] = pick(LOJAS);
+    compra(loja, cat, entre(a, b), Math.floor(rnd() * 30));
+  }
+  compra("STREAMING DEMO", "09000000", 39.9, 3, "1111"); // recorrente
+  compra("ACADEMIA EXEMPLO", "07000000", 189.9, 5, "2222");
+  if (i === 3) compra("CLINICA FICTICIA", "18040000", 7200, 12, "1111"); // pico atípico
+  if (i === 5) {
+    // compra em dólar: `amount` na moeda original, a fatura cobra `amountBrl` (soma já leva os reais)
+    compra("DEVTOOLS INC", "09000000", 110.4, 8, "1111", { currency: "USD", amountBrl: 110.4, amount: 20 });
+  }
+  if (i === 2) { tx({ id: id(), ...cc(), date: `${addDias(ini, 20)}T03:00:00.000Z`, amount: -85, categoryId: "08010000",
+    description: "CANCELAMENTO DE COMPRA - LOJA ONLINE DEMO", cardNumber: "1111" }); soma -= 85; }
+  // pagamento da fatura anterior cai nesta fatura como crédito
+  if (anterior) tx({ id: id(), ...cc(), date: `${fatura(anterior.ym)}T03:00:00.000Z`, amount: -anterior.total,
+    categoryId: "05100000", description: "Pagamento recebido", cardNumber: null });
+  if (!isAberta) {
+    const total = Math.round(soma * 100) / 100;
+    billsG.push({ id: billId, dueDate: `${venc}T00:00:00.000Z`, totalAmount: total, minimumPaymentAmount: Math.round(total * 10) / 100 });
+    anterior = { ym, total };
+  }
+}
+// parcelado em 10x na fatura aberta: 3 parcelas já lançadas nas faturas seguintes
+for (let k = 1; k <= 3; k++) {
+  const ym = mesDe(ultimaFechada + 1 + k);
+  tx({ id: id(), accountId: CARTAO, billForecast: ym, date: `${fatura(ym)}T03:00:00.000Z`, amount: 320,
+    categoryId: "08000000", description: `LOJA DE MOVEIS DEMO ${String(k + 1).padStart(2, "0")}/10`,
+    cardNumber: "2222", status: "PENDING", instN: k + 1, instTotal: 10 });
+}
+
+// conta corrente: salário, aluguel, luz, pix, débito, fatura paga, aplicação
+for (const ym of [...meses, mesDe(0)].filter((v, i, a) => a.indexOf(v) === i && v <= hojeISO.slice(0, 7))) {
+  const d = (dia) => `${ym}-${String(dia).padStart(2, "0")}T13:00:00.000Z`;
+  const ok = (dia) => `${ym}-${String(dia).padStart(2, "0")}` <= hojeISO;
+  if (ok(5)) tx({ id: id(), accountId: CONTA, date: d(5), amount: 15000, categoryId: "01010000", description: "Pix recebido EMPRESA DEMO LTDA" });
+  if (ok(10)) tx({ id: id(), accountId: CONTA, date: d(10), amount: -3500, categoryId: "17010000", description: "Pix enviado IMOBILIARIA EXEMPLO" });
+  if (ok(15)) tx({ id: id(), accountId: CONTA, date: d(15), amount: -entre(180, 320), categoryId: "17020002", description: "Débito automático DA ENERGIA DEMO 1234" });
+  if (ok(12)) tx({ id: id(), accountId: CONTA, date: d(12), amount: -1200, categoryId: "07030000", description: "Pagamento de boleto ESCOLA FICTICIA" });
+  if (ok(20)) tx({ id: id(), accountId: CONTA, date: d(20), amount: -2000, categoryId: "03020000", description: "Aplicação CDB DI" });
+  if (ok(22)) tx({ id: id(), accountId: CONTA, date: d(22), amount: -entre(40, 400), categoryId: "05000000", description: "Pix enviado FULANO DE TAL" });
+  if (ok(18)) tx({ id: id(), accountId: CONTA, date: d(18), amount: -entre(20, 90), categoryId: "11010000", description: "Compra débito PADARIA MODELO" });
+  const b = billsG.find((x) => x.dueDate.startsWith(ym));
+  if (b && ok(6)) tx({ id: id(), accountId: CONTA, date: d(6), amount: -b.totalAmount, categoryId: "03000000", description: "Débito automático FATURA DEMO BLACK" });
+}
+
+const agoraG = new Date().toISOString();
+db.transaction(() => {
+  const insAcc = db.prepare("INSERT INTO bank_accounts (id, type, subtype, name, number, balance, credit_data, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  insAcc.run(CARTAO, "CREDIT", "CREDIT_CARD", "DEMO BLACK", null, 5000, JSON.stringify({ creditLimit: 30000, availableCreditLimit: 24000, balanceDueDate: `${fatura(aberta)}` }), agoraG);
+  insAcc.run(CONTA, "BANK", "CHECKING_ACCOUNT", "conta demo", null, 4200, null, agoraG);
+  const insTx = db.prepare(`INSERT INTO bank_txs (id, account_id, date, amount, status, category_id, description, bill_id,
+    bill_forecast, card_number, currency, amount_brl, installment_n, installment_total, payload, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  for (const t of txsG)
+    insTx.run(t.id, t.accountId, t.date, t.amount, t.status, t.categoryId, t.description, t.billId || null,
+      t.accountId === CARTAO ? t.billForecast : null, t.cardNumber || null, t.currency, t.amountBrl ?? null,
+      t.instN ?? null, t.instTotal ?? null, JSON.stringify(t), agoraG);
+  const insBill = db.prepare("INSERT INTO card_bills (id, account_id, due_date, total_amount, min_payment, payload) VALUES (?, ?, ?, ?, ?, ?)");
+  for (const b of billsG) insBill.run(b.id, CARTAO, b.dueDate, b.totalAmount, b.minimumPaymentAmount, JSON.stringify(b));
+  const insCat = db.prepare("INSERT INTO tx_categories (id, parent_id, name_pt, fetched_at) VALUES (?, ?, ?, ?)");
+  for (const [cid, parent, nome] of CATS) insCat.run(cid, parent, nome, agoraG);
+  db.prepare("INSERT INTO gastos_sync (id, last_sync_at) VALUES (1, ?)").run(agoraG);
+})();
+console.log(`✓ ${txsG.length} lançamentos fictícios de conta/cartão e ${billsG.length} faturas`);
+
 const primeira = linhas[0];
 const ultima = linhas[linhas.length - 1];
 console.log(`✓ ${linhas.length} snapshots de ${primeira.date} a ${ultima.date} em ${OUT}`);

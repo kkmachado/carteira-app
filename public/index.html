@@ -333,17 +333,107 @@
   .mark .d { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--mut); }
   .mark .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:12.5px; }
   .mark button { background:none; border:0; color:var(--subtle); cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
+  /* ---------- Modo: Investimentos | Gastos ---------- */
+  .modes { display:inline-flex; gap:2px; padding:3px; background:var(--card-solid); border:1px solid var(--border);
+           border-radius:999px; margin-bottom:14px; }
+  .mode { border:0; border-radius:999px; padding:6px 14px; font-family:inherit; font-size:12px; font-weight:600;
+          cursor:pointer; background:transparent; color:var(--mut); transition:all .2s var(--ease); }
+  .mode.on { background:var(--sec); color:var(--fg); box-shadow:0 0 0 1px var(--pri-border) inset; }
+
+  /* ---------- Gastos ---------- */
+  .ghero-v { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+             font-size:40px; font-weight:500; letter-spacing:-.03em; line-height:1.05; }
+  .ghero-foot { display:flex; gap:8px 14px; flex-wrap:wrap; align-items:center; margin-top:14px; }
+  .ghero-foot .sep { width:1px; height:18px; background:var(--border); }
+  #gBanner { display:none; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:12px; border:1px solid; line-height:1.5; }
+  #gBanner.warn { display:block; background:var(--warn-dim); border-color:var(--warn-border); color:var(--warn); }
+  #gBanner.err { display:block; background:var(--danger-dim); border-color:var(--danger-border); color:var(--danger); }
+  .callout { display:flex; gap:9px; align-items:flex-start; background:var(--warn-dim); border:1px solid var(--warn-border);
+             color:var(--warn); border-radius:9px; padding:10px 12px; font-size:12.5px; line-height:1.5; margin-top:12px; }
+  .callout svg { flex:none; width:15px; height:15px; margin-top:2px; }
+  .callout b { font-weight:700; }
+
+  /* barras horizontais (evolução, ranking, parcelas) */
+  .hbar { display:grid; grid-template-columns:78px 1fr 104px; align-items:center; gap:10px; padding:5px 0; }
+  .hbar .l { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--mut); white-space:nowrap; }
+  .hbar .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:12.5px;
+             text-align:right; white-space:nowrap; }
+  .hbar .v small { display:block; font-size:10.5px; color:var(--subtle); }
+  .htrack { height:26px; background:var(--track); border-radius:6px; overflow:hidden; }
+  .hfill { height:100%; border-radius:6px; background:var(--info); display:flex; align-items:center; padding:0 9px;
+           min-width:4px; font-size:10.5px; font-weight:600; color:var(--pri-fg); white-space:nowrap; }
+  .hfill.pico { background:var(--warn); }
+  /* fatura aberta / mês corrente: ainda enchendo */
+  .hfill.aberta { background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--info) 55%, transparent) 0 6px,
+                  color-mix(in srgb, var(--info) 35%, transparent) 6px 12px); color:var(--fg); }
+  .hbar.thin .htrack { height:10px; }
+  .hbar.thin .hfill { padding:0; }
+
+  .stack { display:flex; height:26px; border-radius:6px; overflow:hidden; background:var(--track); }
+  .stack .seg { height:100%; }
+  .stack .seg + .seg { border-left:2px solid var(--card-solid); }
+
+  .rank { border-top:1px solid var(--border); }
+  .rank:first-child { border-top:0; }
+  .rank .hbar { grid-template-columns:minmax(0,150px) 1fr 104px; cursor:pointer; padding:8px 0; }
+  .rank .hbar .l { font-family:'Inter',sans-serif; font-size:12.5px; color:var(--fg); font-weight:500;
+                   overflow:hidden; text-overflow:ellipsis; }
+  .rank .conc { font-size:11px; color:var(--warn); margin:-3px 0 7px; }
+  .rank .txl { padding:2px 0 10px; }
+  .gtx { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:8px; align-items:baseline;
+         padding:5px 0; font-size:12px; border-top:1px dashed var(--border); }
+  .gtx .d { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; color:var(--mut); }
+  .gtx .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gtx .t small { color:var(--subtle); margin-left:6px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10.5px; }
+  .gtx .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+  .gtx .a.neg { color:var(--pri); }
+
+  .glist .it { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:8px 0;
+               border-top:1px solid var(--border); }
+  .glist .it:first-child { border-top:0; }
+  .glist .n { font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .glist .s { font-size:11px; color:var(--mut); margin-top:1px; }
+  .glist .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:12.5px;
+              white-space:nowrap; }
+  .pill { display:inline-block; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; padding:1px 6px;
+          border-radius:99px; background:var(--sec); color:var(--mut); margin-left:6px; vertical-align:1px; }
+  .pill.warn { background:var(--warn-dim); color:var(--warn); }
+  .g2 { display:grid; grid-template-columns:1.25fr 1fr; gap:12px; }
+  @media(max-width:640px){ .g2 { grid-template-columns:1fr; } }
+
+  .people { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media(max-width:560px){ .people { grid-template-columns:1fr; } }
+  .person { border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .person .h { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; }
+  .person .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:20px;
+               font-weight:500; margin:6px 0 2px; }
+  .person .s { font-size:11px; color:var(--mut); margin-bottom:8px; }
+  .person .row { display:flex; justify-content:space-between; font-size:11.5px; color:var(--mut); margin-top:6px; }
+  .person .row span:last-child { font-family:'JetBrains Mono',ui-monospace,monospace; color:var(--fg); }
+  @media(max-width:640px){
+    .hbar { grid-template-columns:58px 1fr 92px; gap:8px; }
+    .rank .hbar { grid-template-columns:minmax(0,110px) 1fr 88px; }
+    .ghero-v { font-size:32px; }
+    .ghero-foot .sep { display:none; }
+  }
 </style>
 </head>
 <body>
   <header>
     <div>
-      <div class="eyebrow">CARTEIRA · PLUGGY · <span id="syncDate">—</span></div>
-      <h1>Investimentos</h1>
+      <div class="eyebrow"><span id="eyeInv">CARTEIRA · PLUGGY · <span id="syncDate">—</span></span><span id="eyeGastos" hidden>CONTA E CARTÃO · PLUGGY</span></div>
+      <h1 id="title">Investimentos</h1>
     </div>
     <div id="syncNote"></div>
+    <div id="gSyncNote" hidden style="text-align:right;font-size:11px;line-height:1.5;color:var(--mut)"></div>
   </header>
 
+  <nav class="modes" id="modes" role="tablist" aria-label="Seção do app">
+    <button class="mode" data-mode="inv" role="tab">Investimentos</button>
+    <button class="mode" data-mode="gastos" role="tab">Gastos</button>
+  </nav>
+
+  <div id="modeInv">
   <div id="banner"></div>
   <div id="manualNote"></div>
 
@@ -442,6 +532,76 @@
   </section>
 
   <footer>Saldo líquido já desconta impostos e taxas. Rendimento bruto = valor bruto − aplicado. Alerta vermelho no emissor: acima de R$ 250 mil (limite FGC por instituição). Coleta automática às 12:00 e 19:00. Ativos marcados como <b>manual</b> (previdência) não vêm do Open Finance: o saldo é o da última marcação e fica fora do cálculo de rentabilidade da carteira.</footer>
+  </div>
+
+  <!-- ---------- Gastos (conta corrente, poupança, cartão) ---------- -->
+  <div id="modeGastos" hidden>
+    <div id="gBanner"></div>
+
+    <div class="card hero">
+      <div class="hero-top">
+        <div>
+          <div class="hero-l" id="gHeroL">Gastos</div>
+          <div class="ghero-v" id="gTotal">—</div>
+          <div class="hero-sec" id="gHeroSec"></div>
+        </div>
+        <div class="hero-right">
+          <div class="hero-l" id="gRightL"></div>
+          <div class="hero-total" id="gRight">—</div>
+          <div class="hero-sub" id="gRightSub"></div>
+        </div>
+      </div>
+      <div class="ghero-foot">
+        <div class="chips" id="gFonte"></div>
+        <span class="sep"></span>
+        <div class="chips" id="gJanela"></div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="gtabs" role="tablist">
+      <button class="tab" data-gtab="resumo"  role="tab">Resumo</button>
+      <button class="tab" data-gtab="cat"     role="tab">Categorias</button>
+      <button class="tab" data-gtab="lugares" role="tab">Lugares</button>
+      <button class="tab" data-gtab="cartoes" role="tab">Cartões</button>
+    </nav>
+
+    <section data-gpanel="resumo" role="tabpanel">
+      <div class="card">
+        <h2 id="gEvolT">Evolução</h2>
+        <div id="gEvol"></div>
+        <div id="gCallout"></div>
+      </div>
+      <div class="card">
+        <h2>Composição por categoria</h2>
+        <div id="gStack"></div>
+        <div class="legend"><div class="items" id="gStackLeg"></div></div>
+      </div>
+    </section>
+
+    <section data-gpanel="cat" role="tabpanel" hidden>
+      <div class="card">
+        <h2 class="row"><span>Para onde vai o dinheiro</span><span style="text-transform:none;letter-spacing:0">toque para ver os lançamentos</span></h2>
+        <div id="gRank"></div>
+      </div>
+    </section>
+
+    <section data-gpanel="lugares" role="tabpanel" hidden>
+      <div class="g2">
+        <div class="card"><h2>Estabelecimentos com maior gasto</h2><div class="glist" id="gMerch"></div></div>
+        <div class="card"><h2 id="gRecT">Cobranças recorrentes</h2><div class="glist" id="gRec"></div></div>
+      </div>
+    </section>
+
+    <section data-gpanel="cartoes" role="tabpanel" hidden>
+      <div class="card"><h2>Quem gastou e em qual cartão</h2><div class="people" id="gHolders"></div></div>
+      <div class="g2">
+        <div class="card"><h2>Parcelas já lançadas</h2><div id="gFut"></div></div>
+        <div class="card"><h2>Limite</h2><div id="gLimit"></div></div>
+      </div>
+    </section>
+
+    <footer id="gFoot"></footer>
+  </div>
 
 <script>
 const BRL  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -545,10 +705,14 @@ const BENCHES = [['cdi','CDI'],['ipca','IPCA'],['selic','Selic'],['ibov','IBOV']
 /* Só um benchmark aparece por vez; a cor da série é a mesma da chip e do título. */
 const BENCH_VAR = { cdi:'--bench-cdi', ipca:'--bench-ipca', selic:'--bench-selic', ibov:'--bench-ibov' };
 const ASSET_SORTS = [['valor','Valor'],['tipo','Tipo'],['vencimento','Vencimento'],['mes','Mês']];
+/* localStorage pode lançar (Safari em modo privado): o app abre igual, só sem memória */
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const state = {
   period:'mtd', bench:'cdi', assetSort:'valor',
-  /* aba escolhida sobrevive ao fechar o PWA: o app reabre onde parou */
-  tab: (location.hash || '').slice(1) || localStorage.getItem('tab') || 'geral',
+  /* aba escolhida sobrevive ao fechar o PWA: o app reabre onde parou. Em Gastos
+     o hash é "#gastos/<aba>"; o de Investimentos segue sendo só "#<aba>". */
+  tab: (!(location.hash || '').startsWith('#gastos') && (location.hash || '').slice(1)) || lsGet('tab') || 'geral',
 };
 let assetsCache = null, totalBalance = 0;
 const expanded = new Set();          // categorias abertas na tabela "Meus produtos"
@@ -585,7 +749,7 @@ function renderTabs() {
 document.querySelectorAll('#tabs .tab').forEach(b =>
   b.addEventListener('click', () => {
     state.tab = b.dataset.tab;
-    localStorage.setItem('tab', state.tab);
+    lsSet('tab', state.tab);
     history.replaceState(null, '', '#' + state.tab);
     renderTabs();
   }));
@@ -1487,12 +1651,319 @@ function renderPendingManual() {
   bindManualForms(box);
 }
 
+/* ======================================================================
+   Gastos — conta corrente, poupança e cartão (/api/gastos)
+   Todo cálculo vem pronto do backend (lib/gastos.js); aqui só apresentação.
+   ====================================================================== */
+const G_FONTES = [['cartao','Cartão'],['conta','Conta'],['tudo','Tudo']];
+const G_JANELAS = [['3','3'],['6','6'],['12','12']];
+const G_TABS = ['resumo','cat','lugares','cartoes'];
+/* Cinco categorias de maior peso ganham cor; o resto vira "Outras" em cinza. */
+const G_CORES = ['--info','--c3','--c5','--c4','--c2'];
+const WARN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+
+const hashG = (location.hash || '').match(/^#gastos(?:\/(\w+))?/);
+const gstate = {
+  fonte: G_FONTES.some(([v]) => v === lsGet('gFonte')) ? lsGet('gFonte') : 'cartao',
+  n: G_JANELAS.some(([v]) => v === lsGet('gN')) ? lsGet('gN') : '3',
+  tab: (hashG && hashG[1]) || lsGet('gTab') || 'resumo',
+};
+state.mode = hashG ? 'gastos' : (lsGet('mode') === 'gastos' ? 'gastos' : 'inv');
+const gCache = {};                 // "fonte|n" → resposta (trocar de aba não refaz fetch)
+const gOpenCats = new Set();       // categorias expandidas no ranking
+let gData = null;
+
+const unidade = () => gstate.fonte === 'cartao' ? ['fatura','faturas'] : ['mês','meses'];
+
+function setMode(m) {
+  state.mode = m === 'gastos' ? 'gastos' : 'inv';
+  lsSet('mode', state.mode);
+  const g = state.mode === 'gastos';
+  history.replaceState(null, '', g ? '#gastos/' + gstate.tab : '#' + state.tab);
+  document.querySelectorAll('#modes .mode').forEach(b => {
+    const on = b.dataset.mode === state.mode;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on);
+  });
+  document.getElementById('modeInv').hidden = g;
+  document.getElementById('modeGastos').hidden = !g;
+  document.getElementById('eyeInv').hidden = g;
+  document.getElementById('eyeGastos').hidden = !g;
+  document.getElementById('syncNote').hidden = g;
+  document.getElementById('gSyncNote').hidden = !g;
+  document.getElementById('title').textContent = g ? 'Gastos' : 'Investimentos';
+  document.title = g ? 'Gastos' : 'Investimentos';
+  if (g) { renderGTabs(); loadGastos(); }
+  else renderTabs(); // gráficos criados com a seção escondida precisam de resize
+}
+document.querySelectorAll('#modes .mode').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+function renderGTabs() {
+  // sem cartão na fonte, a aba Cartões não tem o que mostrar
+  const temCartao = gstate.fonte !== 'conta';
+  document.querySelector('#gtabs [data-gtab="cartoes"]').hidden = !temCartao;
+  if (!G_TABS.includes(gstate.tab) || (!temCartao && gstate.tab === 'cartoes')) gstate.tab = 'resumo';
+  document.querySelectorAll('#gtabs .tab').forEach(b => {
+    const on = b.dataset.gtab === gstate.tab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on);
+  });
+  document.querySelectorAll('section[data-gpanel]').forEach(s => { s.hidden = s.dataset.gpanel !== gstate.tab; });
+}
+document.querySelectorAll('#gtabs .tab').forEach(b => b.addEventListener('click', () => {
+  gstate.tab = b.dataset.gtab;
+  lsSet('gTab', gstate.tab);
+  history.replaceState(null, '', '#gastos/' + gstate.tab);
+  renderGTabs();
+}));
+
+function renderGChips() {
+  chips('gFonte', G_FONTES, gstate.fonte, v => { gstate.fonte = v; lsSet('gFonte', v); gOpenCats.clear(); renderGTabs(); loadGastos(); });
+  const [u1, uN] = unidade();
+  chips('gJanela', G_JANELAS.map(([v, l]) => [v, l + ' ' + uN]), gstate.n, v => { gstate.n = v; lsSet('gN', v); loadGastos(); });
+}
+
+const gBanner = (cls, msg) => {
+  const el = document.getElementById('gBanner');
+  el.className = cls || '';
+  el.textContent = msg || '';
+};
+
+async function loadGastos() {
+  renderGChips();
+  const key = gstate.fonte + '|' + gstate.n;
+  if (gCache[key]) { gData = gCache[key]; return renderGastos(); }
+  document.getElementById('gTotal').textContent = '…';
+  try {
+    const res = await fetch('/api/gastos?fonte=' + gstate.fonte + '&n=' + gstate.n);
+    if (res.status === 404) return gBanner('err', 'Gastos indisponível: reinicie o servidor (rota /api/gastos ausente)');
+    const j = await res.json();
+    if (j.empty) {
+      gBanner(j.error ? 'err' : 'warn', j.error ? 'Não foi possível buscar os lançamentos na Pluggy: ' + j.error
+        : 'Nenhum lançamento sincronizado ainda' + (j.demo ? ' — rode `npm run seed:demo`' : ''));
+      document.getElementById('gTotal').textContent = '—';
+      return;
+    }
+    if (j.error && !j.periods) throw new Error(j.error);
+    gCache[key] = j;
+    gData = j;
+  } catch (e) {
+    gBanner('err', 'Falha ao carregar gastos: ' + (e.message || e));
+    document.getElementById('gTotal').textContent = '—';
+    return;
+  }
+  renderGastos();
+}
+
+function renderGastos() {
+  const g = gData;
+  if (!g) return;
+  gBanner(g.sync && g.sync.stale ? 'warn' : '', g.sync && g.sync.stale
+    ? 'Pluggy indisponível — lançamentos do cache (' + g.sync.error + ')' : '');
+  const sn = document.getElementById('gSyncNote');
+  sn.innerHTML = g.demo ? 'dados <b>fictícios</b> (demo)' : g.sync && g.sync.lastSyncAt
+    ? 'lançamentos de: <b>' + new Date(g.sync.lastSyncAt).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(', ', ' ') + '</b>'
+    : '';
+
+  renderGHero(g);
+  renderGEvol(g);
+  renderGStack(g);
+  renderGRank(g);
+  renderGLugares(g);
+  renderGCartoes(g);
+  renderGFoot(g);
+}
+
+function renderGHero(g) {
+  const [u1, uN] = unidade();
+  const n = g.periods.length;
+  document.getElementById('gHeroL').textContent =
+    gstate.fonte === 'cartao' ? `Gastos no cartão · ${n} ${n > 1 ? uN : u1}`
+    : gstate.fonte === 'conta' ? `Gastos na conta · ${n} ${n > 1 ? uN : u1}`
+    : `Gastos na conta e no cartão · ${n} ${n > 1 ? uN : u1}`;
+  document.getElementById('gTotal').textContent = BRL2(g.totals.total);
+  const sec = [
+    `${g.totals.count}<small>lançamentos</small>`,
+    `${BRL2(g.totals.ticket)}<small>ticket médio</small>`,
+  ];
+  if (g.totals.internacional > 0) sec.push(`${BRL2(g.totals.internacional)}<small>internacional</small>`);
+  document.getElementById('gHeroSec').innerHTML = sec.map(v => `<div class="v">${v}</div>`).join('');
+
+  const L = document.getElementById('gRightL'), R = document.getElementById('gRight'), S = document.getElementById('gRightSub');
+  if (gstate.fonte === 'cartao') {
+    const aberta = g.periods.find(p => p.aberta);
+    const cartao = (g.accounts || []).find(a => a.type === 'CREDIT');
+    L.textContent = 'Fatura aberta' + (aberta ? ' · ' + aberta.label.replace(' · aberta', '') : '');
+    R.textContent = aberta ? BRL2(aberta.total) : '—';
+    S.textContent = cartao && cartao.available != null ? 'limite disponível ' + BRL(cartao.available) : '';
+  } else {
+    L.textContent = 'Entradas no período';
+    R.textContent = BRL2(g.totals.entradas);
+    const saldo = (g.accounts || []).filter(a => a.type === 'BANK').reduce((s, a) => s + (a.balance || 0), 0);
+    S.textContent = 'saldo em conta e poupança ' + BRL(saldo);
+  }
+}
+
+function renderGEvol(g) {
+  const [u1] = unidade();
+  document.getElementById('gEvolT').textContent = gstate.fonte === 'cartao' ? 'Evolução por fatura' : 'Evolução por mês';
+  const max = Math.max(1, ...g.periods.map(p => p.total));
+  document.getElementById('gEvol').innerHTML = g.periods.map(p => {
+    const pct = Math.max(0, p.total / max * 100);
+    const cls = p.aberta ? 'aberta' : p.pico ? 'pico' : '';
+    const nota = p.aberta ? (gstate.fonte === 'cartao' ? 'parcial · aberta' : 'parcial')
+      : p.diff != null && Math.abs(p.diff) > 1 ? `fatura ${BRL2(p.pluggyTotal)}` : '';
+    const rotulo = p.label.replace(' · aberta', '').replace('venc. ', '');
+    return `<div class="hbar" title="${esc(p.label)}: ${BRL2(p.total)} · ${p.count} lançamentos">
+      <span class="l">${esc(rotulo)}</span>
+      <div class="htrack"><div class="hfill ${cls}" style="width:${pct.toFixed(1)}%">${pct > 28 ? p.count + ' lanç.' : ''}</div></div>
+      <span class="v">${BRL2(p.total)}${nota ? `<small>${nota}</small>` : ''}</span>
+    </div>`;
+  }).join('') || '<div class="note">sem lançamentos no período</div>';
+
+  /* Callout: o pico explicado por um lançamento. Prioriza período-pico; sem
+     pico, o outlier de maior peso (ex.: compra grande no mês corrente). */
+  const cand = g.periods.filter(p => p.outlier).sort((a, b) => (b.pico - a.pico) || (b.outlier.share - a.outlier.share))[0];
+  const box = document.getElementById('gCallout');
+  if (!cand) { box.innerHTML = ''; return; }
+  const o = cand.outlier;
+  const onde = gstate.fonte === 'cartao' ? `da fatura ${cand.label.replace('venc. ', 'de ').replace(' · aberta', ' (aberta)')}` : `de ${cand.label}`;
+  box.innerHTML = `<div class="callout">${WARN_ICON}<div><b>${cand.pico ? 'Pico' : 'Peso'} ${onde} explicado por 1 lançamento:</b>
+    "${esc(o.merchant)}" (${esc(o.cat)}, ${dBR(o.date).slice(0, 5)}) somou ${BRL2(o.value)} sozinho — ${Math.round(o.share * 100)}% do total.
+    Sem ele, ${cand.aberta ? 'o parcial seria' : 'cairia para'} ~${BRL(o.semEle)}.</div></div>`;
+}
+
+/* Top 5 categorias do intervalo ganham cor; as mesmas cores valem para todos os
+   períodos, para a faixa ser comparável de uma linha para outra. */
+function gTopCats(g) { return g.categories.filter(c => c.value > 0).slice(0, 5).map(c => c.name); }
+const gCorDe = (top, name) => { const i = top.indexOf(name); return i < 0 ? 'var(--subtle)' : `var(${G_CORES[i]})`; };
+
+function renderGStack(g) {
+  const top = gTopCats(g);
+  const max = Math.max(1, ...g.periods.map(p => p.total));
+  document.getElementById('gStack').innerHTML = g.periods.map(p => {
+    const pos = p.byCategory.filter(c => c.value > 0);
+    const soma = pos.reduce((s, c) => s + c.value, 0);
+    const segs = top.map(n => [n, (pos.find(c => c.name === n) || {}).value || 0]).filter(([, v]) => v > 0);
+    const outras = pos.filter(c => !top.includes(c.name)).reduce((s, c) => s + c.value, 0);
+    if (outras > 0) segs.push(['Outras', outras]);
+    const rotulo = p.label.replace(' · aberta', '').replace('venc. ', '');
+    return `<div class="hbar">
+      <span class="l">${esc(rotulo)}</span>
+      <div><div class="stack" style="width:${(soma / max * 100).toFixed(1)}%">${segs.map(([n, v]) =>
+        `<div class="seg" title="${esc(n)}: ${BRL2(v)} · ${Math.round(v / soma * 100)}%" style="width:${(v / soma * 100).toFixed(2)}%;background:${n === 'Outras' ? 'var(--subtle)' : gCorDe(top, n)}"></div>`).join('')}</div></div>
+      <span class="v">${BRL(p.total)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('gStackLeg').innerHTML = [...top, 'Outras'].map(n =>
+    `<span><span class="dot" style="background:${n === 'Outras' ? 'var(--subtle)' : gCorDe(top, n)}"></span>${esc(n)}</span>`).join('');
+}
+
+function gTxHTML(t) {
+  const extra = [t.card && 'final ' + t.card, t.parc, t.intl, t.pend && 'pendente'].filter(Boolean).join(' · ');
+  return `<div class="gtx"><span class="d">${dBR(t.d).slice(0, 5)}</span>
+    <span class="t" title="${esc(t.desc)}">${esc(t.m || t.desc)}${extra ? `<small>${esc(extra)}</small>` : ''}</span>
+    <span class="a ${t.v < 0 ? 'neg' : ''}">${BRL2(t.v)}</span></div>`;
+}
+
+function renderGRank(g) {
+  const top = gTopCats(g);
+  const lista = g.categories.filter(c => c.value !== 0);
+  const max = Math.max(1, ...lista.map(c => c.value));
+  const el = document.getElementById('gRank');
+  el.innerHTML = lista.map(c => {
+    const open = gOpenCats.has(c.name);
+    const txs = open ? g.txs.filter(t => t.cat === c.name) : [];
+    return `<div class="rank">
+      <div class="hbar" data-cat="${esc(c.name)}" role="button" tabindex="0" aria-expanded="${open}">
+        <span class="l">${esc(c.name)}</span>
+        <div class="htrack" style="height:12px"><div class="hfill" style="width:${Math.max(0, c.value / max * 100).toFixed(1)}%;background:${gCorDe(top, c.name)}"></div></div>
+        <span class="v">${BRL2(c.value)}<small>${PCT(c.share * 100)} · ${c.count}x</small></span>
+      </div>
+      ${c.concentracao ? `<div class="conc">${Math.round(c.concentracao.share * 100)}% desta categoria é um único lançamento (${esc(c.concentracao.merchant)}, ${BRL2(c.concentracao.value)})</div>` : ''}
+      ${open ? `<div class="txl">${txs.slice(0, 60).map(gTxHTML).join('')}${txs.length > 60 ? `<div class="dnote">+ ${txs.length - 60} lançamentos</div>` : ''}</div>` : ''}
+    </div>`;
+  }).join('') || '<div class="note">sem lançamentos no período</div>';
+  const toggle = row => {
+    const n = row.dataset.cat;
+    gOpenCats.has(n) ? gOpenCats.delete(n) : gOpenCats.add(n);
+    renderGRank(g);
+  };
+  el.querySelectorAll('[data-cat]').forEach(row => {
+    row.addEventListener('click', () => toggle(row));
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(row); } });
+  });
+}
+
+function renderGLugares(g) {
+  document.getElementById('gMerch').innerHTML = g.merchants.map(m => `<div class="it">
+      <div style="min-width:0"><div class="n">${esc(m.name)}${m.atipico ? '<span class="pill warn">atípico</span>' : ''}</div>
+        <div class="s">${esc(m.cat)}<span class="pill">${m.count}x</span></div></div>
+      <div class="a">${BRL2(m.total)}</div></div>`).join('') || '<div class="note">—</div>';
+  const fech = g.periods.filter(p => !p.aberta).length;
+  const [u1, uN] = unidade();
+  // fatura é feminino, mês masculino
+  document.getElementById('gRecT').textContent = gstate.fonte === 'cartao'
+    ? `Presentes em todas as ${fech} faturas fechadas` : `Presentes em todos os ${fech} meses fechados`;
+  document.getElementById('gRec').innerHTML = fech < 2
+    ? `<div class="note">precisa de pelo menos 2 ${uN} ${gstate.fonte === 'cartao' ? 'fechadas' : 'fechados'} na janela</div>`
+    : g.recurring.slice(0, 12).map(r => `<div class="it">
+      <div style="min-width:0"><div class="n">${esc(r.name)}</div>
+        <div class="s">${esc(r.cat)} · ~${BRL(r.media)} por ${u1}</div></div>
+      <div class="a">${BRL2(r.total)}</div></div>`).join('') || '<div class="note">nenhum estabelecimento em todos os períodos</div>';
+}
+
+function renderGCartoes(g) {
+  const cores = ['--info', '--c1', '--c3', '--c5'];
+  const max = Math.max(1, ...g.holders.map(h => h.total));
+  document.getElementById('gHolders').innerHTML = g.holders.map((h, i) => `<div class="person">
+      <div class="h"><span class="dot" style="background:var(${cores[i % cores.length]})"></span>${esc(h.name)}</div>
+      <div class="v">${BRL2(h.total)}</div>
+      <div class="s">${PCT(h.share * 100)} do gasto no cartão</div>
+      <div class="track"><div class="fill" style="width:${(h.total / max * 100).toFixed(1)}%;background:var(${cores[i % cores.length]})"></div></div>
+      ${h.cards.map(c => `<div class="row"><span>Cartão final ${esc(c.final)}</span><span>${BRL2(c.total)}</span></div>`).join('')}
+    </div>`).join('') || '<div class="note">sem lançamentos de cartão — nomes vêm de CARD_HOLDERS no .env</div>';
+
+  const fmax = Math.max(1, ...g.futuras.map(f => f.total));
+  const ftot = g.futuras.reduce((s, f) => s + f.total, 0);
+  document.getElementById('gFut').innerHTML = g.futuras.length
+    ? g.futuras.map(f => `<div class="hbar thin"><span class="l">${esc(f.label)}</span>
+        <div class="htrack"><div class="hfill" style="width:${(f.total / fmax * 100).toFixed(1)}%"></div></div>
+        <span class="v">${BRL2(f.total)}</span></div>`).join('') +
+      `<div class="note">${BRL2(ftot)} comprometidos em faturas futuras</div>`
+    : '<div class="note">nenhuma parcela lançada para depois da fatura aberta</div>';
+
+  const cartoes = (g.accounts || []).filter(a => a.type === 'CREDIT' && a.creditLimit);
+  document.getElementById('gLimit').innerHTML = cartoes.map(a => {
+    const usado = a.creditLimit - (a.available || 0);
+    return `<div class="issuer"><span class="name">${esc(a.name)}</span>
+      <div class="track"><div class="fill" style="width:${Math.min(100, usado / a.creditLimit * 100).toFixed(1)}%;background:var(--info)"></div></div>
+      <span class="val">${BRL(usado)}</span></div>
+      <div class="note" style="text-align:left">de ${BRL(a.creditLimit)} · disponível ${BRL(a.available || 0)}</div>`;
+  }).join('') || '<div class="note">—</div>';
+}
+
+function renderGFoot(g) {
+  const f = g.totals.fora;
+  const partes = [];
+  if (f.pagamentos) partes.push(`pagamentos de fatura (${BRL(f.pagamentos)})`);
+  if (f.transferencias) partes.push(`transferências entre as próprias contas (${BRL(f.transferencias)})`);
+  if (f.investimentos) partes.push(`aplicações e previdência (${BRL(f.investimentos)})`);
+  document.getElementById('gFoot').innerHTML =
+    (partes.length ? 'Fora do total nesta janela: ' + partes.join(', ') + '. ' : '') +
+    'Estornos abatem da categoria da compra. Categorias da Pluggy (Open Finance), agrupadas no primeiro nível. ' +
+    (gstate.fonte === 'cartao' ? 'Cada barra é uma fatura, pelo vencimento; a aberta ainda recebe lançamentos. '
+      : gstate.fonte === 'tudo' ? 'Em "Tudo" o cartão entra pelo mês da compra, não da fatura. ' : '') +
+    'Fatura de cartão que não está no app (ex.: BTG) conta como gasto em "' + 'Faturas de outros cartões' + '": é o único rastro daquele consumo.';
+}
+
 function draw(id, type, data, opts) {
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(document.getElementById(id),
     resolveVars({ type, data, options:{ responsive:true, maintainAspectRatio:true, ...opts } }));
 }
 
+setMode(state.mode);
 load().catch(err => {
   banner('err', 'Falha ao carregar o app: ' + (err.message || err));
   document.getElementById('status').textContent = '';

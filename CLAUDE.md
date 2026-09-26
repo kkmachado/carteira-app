@@ -62,6 +62,21 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 - Marcação parada há mais de **5 dias** (`MARCACAO_MAX_DIAS` no frontend) vira aviso âmbar no cabeçalho: o saldo só muda quando alguém digita, então um número velho estaria entrando no patrimônio como se fosse atual.
 - `GET /investments/:id/transactions` recusa id manual por validação de formato; o frontend nem chama.
 
+## Gastos (conta corrente, poupança, cartão)
+
+- Seletor **Investimentos | Gastos** no topo troca a página inteira (`state.mode`, `localStorage.mode`, hash `#gastos/<aba>`); em Gastos o hero de rendimento some e entram abas próprias (Resumo · Categorias · Lugares · Cartões). Fonte `Cartão · Conta · Tudo` e janela `3 · 6 · 12`.
+- Mesmo item MeuPluggy: `/accounts?itemId=`, `/v2/transactions?accountId=` e `/bills?accountId=`. **`GET /transactions` (v1) responde 410**; a v2 pagina por cursor e `next` já vem como query string pronta (`?accountId=…&after=…`). `pageSize` e `cursor` são recusados.
+- `syncGastos()` espelha tudo no SQLite (`bank_accounts`, `bank_txs`, `card_bills`, `tx_categories`, `gastos_sync`): roda nas coletas das 12:00/19:00 e sob demanda quando o último sync tem mais de 12h. **Histórico não é apagado** (a janela da Pluggy anda); só sai `PENDING` que sumiu da resposta (virou POSTED com outro id ou foi cancelado). Pluggy fora → cache com `sync.stale`.
+- Cálculo puro em `lib/gastos.js` (`buildGastos`), testado em `test/gastos.test.js`.
+- **Cartão**: período = fatura, pelo mês de vencimento. Lançamento com `billId` vai para a fatura fechada; sem, pelo `billForecastDate`, mas previsão anterior à fatura aberta cai na aberta (a Pluggy prevê errado compras feitas depois do fechamento). Somando por `billId` sem os pagamentos, as faturas batem **ao centavo** com `totalAmount` de `/bills`; a tela mostra a diferença se aparecer. Parcelas com previsão depois da fatura aberta = "parcelas já lançadas".
+- Pagamento no cartão sai do gasto nas duas formas em que aparece: categoria `05100000` ("Pagamento recebido") e `"PAGAMENTO DEBITO AUTOMATICO"` (categoria `Transfer - Internal`). Negativo em outra categoria é estorno e abate da categoria.
+- **Conta**: período = mês civil. Fora do gasto: `04*` e pares débito/crédito de mesmo valor entre as próprias contas em até 3 dias (`mirroredIds` — "TRANSF SALDO BASE DIA" vem como transferência comum); investimento por `03*` **ou pela descrição** (a compra de Tesouro "Saída COR ITAUCOR COMPRA TD" vem como Shopping); crédito é "entrada", não abate gasto.
+- **Débito da fatura na conta não tem categoria confiável** (a mesma fatura já veio como Credit card payment, Investments e sem categoria): é reconhecido pelo **valor** (= `totalAmount` de uma fatura sincronizada, vencimento ±10 dias) e sai do gasto. Fatura de cartão **fora** da análise (BTG, Uniclass ignorado) conta como gasto em "Faturas de outros cartões" — é o único rastro daquele consumo.
+- Em "Tudo" as duas fontes vão por mês civil: o cartão entra pelo **mês da compra**, não da fatura.
+- Categoria = nível 1 da hierarquia de `/categories` (`descriptionTranslated`). Nome de estabelecimento: descrição do cartão vem em largura fixa (nome 23 col., cidade 14, país 3) ou colada ("PETZ DIGITALEMBUBRA"); as cidades do formato fixo servem de dicionário para limpar a colada.
+- Titular do cartão não vem da Pluggy (só o final): `CARD_HOLDERS="2505:Carlos,…"` no `.env`. Contas fora da análise: `GASTOS_IGNORAR_CONTAS` (ids). Ambas declaradas no `docker-compose.yml`.
+- Demo: `seed:demo` gera faturas e conta fictícias; `DEMO=1` nunca sincroniza.
+
 ## Benchmarks (SGS / Yahoo)
 
 - SGS Banco Central (sem chave): série **12** = CDI diário (% ao dia útil), **433** = IPCA mensal (% a.m.), **11** = Selic diária. Formato: `https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados?formato=json&dataInicial=DD/MM/AAAA`, datas em DD/MM/AAAA.

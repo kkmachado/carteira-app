@@ -8,7 +8,7 @@ o frontend PWA.
 ## Subir com Docker (LXC/VM no Proxmox ou Easypanel)
 
 1. Copie a pasta para o servidor
-2. `cp .env.example .env` e preencha clientId, clientSecret e itemId
+2. `cp .env.example .env` e preencha clientId, clientSecret e itemId (e, para a tela de Gastos, `CARD_HOLDERS` e `GASTOS_IGNORAR_CONTAS`)
 3. `docker compose up -d --build`
 4. Acesse http://IP_DO_SERVIDOR:3000
 
@@ -28,6 +28,7 @@ O manifest faz o app abrir em tela cheia (standalone), sem barra do Safari.
 - `GET /api/performance?period=mtd|ytd|3m|6m|12m|24m|max` — rentabilidade (TWR), benchmarks e tabela por categoria/ativo
 - `GET /api/investments/:id/transactions` — movimentações do ativo (proxy da Pluggy, cache de 12h no SQLite)
 - `GET /api/benchmarks?from=YYYY-MM-DD` — séries CDI/IPCA/Selic (SGS Bacen) e IBOV (Yahoo), cacheadas no SQLite e atualizadas 1x/dia
+- `GET /api/gastos?fonte=cartao|conta|tudo&n=3|6|12` — análise de gastos da conta corrente, poupança e cartão (transações da Pluggy espelhadas no SQLite, ressincronizadas a cada 12h e nas coletas)
 - `GET /api/health` — healthcheck (usado pelo Docker; não chama a Pluggy)
 
 Não existe rota de sync sob demanda: o item é do conector MeuPluggy, que a Pluggy

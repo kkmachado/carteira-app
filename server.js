@@ -19,9 +19,23 @@ import {
   daysByGroup,
   grossUpFactorWeighted,
 } from "./lib/performance.js";
+import { buildGastos } from "./lib/gastos.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_ITEM_ID, PORT = 3000, DB_PATH } = process.env;
+
+/* Gastos: a Pluggy só dá o final do cartão, não o titular —
+   CARD_HOLDERS="2505:Carlos,7504:Carlos,2618:Juliana". Contas fora da análise
+   (ex.: cartão parado) em GASTOS_IGNORAR_CONTAS, ids separados por vírgula. */
+const CARD_HOLDERS = Object.fromEntries(
+  String(process.env.CARD_HOLDERS || "")
+    .split(",")
+    .map((p) => p.split(":").map((x) => x.trim()))
+    .filter(([f, n]) => f && n)
+);
+const GASTOS_IGNORAR = new Set(
+  String(process.env.GASTOS_IGNORAR_CONTAS || "").split(",").map((s) => s.trim()).filter(Boolean)
+);
 
 /* Modo demo (`npm run demo`): serve um banco de dados fictício e nunca chama a
    Pluggy — nem credenciais, nem escrita no banco real. Só para validar telas. */
@@ -67,6 +81,57 @@ db.exec(`
     amount REAL NOT NULL             -- positivo = aporte, negativo = resgate
   );
   CREATE INDEX IF NOT EXISTS idx_manual_flows ON manual_flows (asset_id, date);
+
+  -- Gastos (conta corrente, poupança, cartão): espelho das transações da Pluggy.
+  -- A Pluggy só guarda uma janela recente; aqui o histórico fica.
+  CREATE TABLE IF NOT EXISTS bank_accounts (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,              -- BANK | CREDIT
+    subtype TEXT,
+    name TEXT,
+    number TEXT,
+    balance REAL,
+    credit_data TEXT,                -- JSON (limite, vencimento, adicionais)
+    fetched_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS bank_txs (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    amount REAL NOT NULL,
+    status TEXT,
+    category_id TEXT,
+    description TEXT,
+    bill_id TEXT,
+    bill_forecast TEXT,              -- YYYY-MM (fatura prevista, cartão)
+    card_number TEXT,
+    currency TEXT,
+    amount_brl REAL,                 -- amountInAccountCurrency (compra internacional)
+    installment_n INTEGER,
+    installment_total INTEGER,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_bank_txs ON bank_txs (account_id, date);
+  CREATE TABLE IF NOT EXISTS card_bills (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    due_date TEXT NOT NULL,
+    total_amount REAL NOT NULL,
+    min_payment REAL,
+    payload TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS tx_categories (
+    id TEXT PRIMARY KEY,
+    parent_id TEXT,
+    name_pt TEXT,
+    fetched_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS gastos_sync (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_sync_at TEXT,
+    last_error TEXT
+  );
 `);
 migrateManualFlows();
 initBenchmarks(db);
@@ -796,6 +861,185 @@ app.get("/api/performance", async (req, res) => {
   }
 });
 
+/* ---------- Gastos (conta corrente, poupança, cartão) ----------
+   `GET /transactions` foi descontinuado pela Pluggy (410): a v2 pagina por
+   cursor e a resposta traz `next` já como query string pronta
+   ("?accountId=…&after=…"); `pageSize` e `cursor` são recusados. */
+const GASTOS_TTL_MS = 12 * 60 * 60 * 1000;
+const CATS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_PAGES = 50;
+
+async function fetchAllTxs(accountId) {
+  const out = [];
+  let next = `?accountId=${encodeURIComponent(accountId)}`;
+  for (let i = 0; next && i < MAX_PAGES; i++) {
+    const page = await pluggy(`/v2/transactions${next}`);
+    out.push(...(page.results || []));
+    next = page.next || null;
+  }
+  return out;
+}
+
+async function syncGastos() {
+  const now = new Date().toISOString();
+  try {
+    const accounts = ((await pluggy(`/accounts?itemId=${PLUGGY_ITEM_ID}`)).results || [])
+      .filter((a) => !GASTOS_IGNORAR.has(a.id));
+
+    const catsFresh = db.prepare("SELECT MIN(fetched_at) AS f FROM tx_categories").get()?.f;
+    const cats = !catsFresh || Date.now() - Date.parse(catsFresh) > CATS_TTL_MS
+      ? (await pluggy("/categories")).results || []
+      : null;
+
+    // busca tudo antes de escrever: falha no meio não deixa o banco pela metade
+    const porConta = [];
+    for (const a of accounts) {
+      const txs = await fetchAllTxs(a.id);
+      const bills = a.type === "CREDIT" ? (await pluggy(`/bills?accountId=${a.id}`)).results || [] : [];
+      porConta.push({ a, txs, bills });
+    }
+
+    const upAcc = db.prepare(
+      `INSERT INTO bank_accounts (id, type, subtype, name, number, balance, credit_data, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET type=excluded.type, subtype=excluded.subtype, name=excluded.name,
+         number=excluded.number, balance=excluded.balance, credit_data=excluded.credit_data, fetched_at=excluded.fetched_at`
+    );
+    const upTx = db.prepare(
+      `INSERT INTO bank_txs (id, account_id, date, amount, status, category_id, description, bill_id, bill_forecast,
+         card_number, currency, amount_brl, installment_n, installment_total, payload, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id, date=excluded.date, amount=excluded.amount,
+         status=excluded.status, category_id=excluded.category_id, description=excluded.description,
+         bill_id=excluded.bill_id, bill_forecast=excluded.bill_forecast, card_number=excluded.card_number,
+         currency=excluded.currency, amount_brl=excluded.amount_brl, installment_n=excluded.installment_n,
+         installment_total=excluded.installment_total, payload=excluded.payload, updated_at=excluded.updated_at`
+    );
+    const upBill = db.prepare(
+      `INSERT INTO card_bills (id, account_id, due_date, total_amount, min_payment, payload) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET due_date=excluded.due_date, total_amount=excluded.total_amount,
+         min_payment=excluded.min_payment, payload=excluded.payload`
+    );
+    const pendentes = db.prepare("SELECT id FROM bank_txs WHERE account_id = ? AND status = 'PENDING'");
+    const delTx = db.prepare("DELETE FROM bank_txs WHERE id = ?");
+
+    db.transaction(() => {
+      for (const { a, txs, bills } of porConta) {
+        upAcc.run(a.id, a.type, a.subtype || null, a.name || null, a.number || null, a.balance ?? null,
+          a.creditData ? JSON.stringify(a.creditData) : null, now);
+        const vistos = new Set();
+        for (const t of txs) {
+          const cc = t.creditCardMetadata || {};
+          vistos.add(t.id);
+          upTx.run(t.id, a.id, t.date, t.amount, t.status || null, t.categoryId || null, t.description || "",
+            cc.billId || null, cc.billForecastDate || null, cc.cardNumber || null, t.currencyCode || "BRL",
+            t.amountInAccountCurrency ?? null, cc.installmentNumber ?? null, cc.totalInstallments ?? null,
+            JSON.stringify(t), now);
+        }
+        /* Histórico não se apaga: a janela da Pluggy anda e o SQLite guarda o que
+           ela descarta. Só o PENDING que sumiu sai — virou POSTED com outro id
+           ou foi cancelado, e ficaria contado em dobro. */
+        for (const { id } of pendentes.all(a.id)) if (!vistos.has(id)) delTx.run(id);
+        for (const b of bills) upBill.run(b.id, a.id, b.dueDate, b.totalAmount, b.minimumPaymentAmount ?? null, JSON.stringify(b));
+      }
+      if (cats) {
+        db.prepare("DELETE FROM tx_categories").run();
+        const ins = db.prepare("INSERT INTO tx_categories (id, parent_id, name_pt, fetched_at) VALUES (?, ?, ?, ?)");
+        for (const c of cats) ins.run(c.id, c.parentId || null, c.descriptionTranslated || c.description, now);
+      }
+      db.prepare(
+        `INSERT INTO gastos_sync (id, last_sync_at, last_error) VALUES (1, ?, NULL)
+         ON CONFLICT(id) DO UPDATE SET last_sync_at=excluded.last_sync_at, last_error=NULL`
+      ).run(now);
+    })();
+    const n = porConta.reduce((s, c) => s + c.txs.length, 0);
+    return { ok: true, accounts: porConta.length, txs: n };
+  } catch (err) {
+    db.prepare(
+      `INSERT INTO gastos_sync (id, last_sync_at, last_error) VALUES (1, NULL, ?)
+       ON CONFLICT(id) DO UPDATE SET last_error=excluded.last_error`
+    ).run(String(err.message || err));
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+function loadGastosInputs() {
+  const ignorar = [...GASTOS_IGNORAR];
+  const accounts = db.prepare("SELECT * FROM bank_accounts").all().filter((a) => !ignorar.includes(a.id));
+  const accType = new Map(accounts.map((a) => [a.id, a.type]));
+  const txs = db
+    .prepare("SELECT * FROM bank_txs ORDER BY date")
+    .all()
+    .filter((r) => accType.has(r.account_id))
+    .map((r) => ({
+      id: r.id,
+      accountId: r.account_id,
+      accountType: accType.get(r.account_id),
+      date: r.date,
+      amount: r.amount,
+      status: r.status,
+      categoryId: r.category_id,
+      description: r.description,
+      billId: r.bill_id,
+      billForecast: r.bill_forecast,
+      cardNumber: r.card_number,
+      currency: r.currency,
+      amountBrl: r.amount_brl,
+      instN: r.installment_n,
+      instTotal: r.installment_total,
+    }));
+  const bills = db
+    .prepare("SELECT id, account_id, due_date, total_amount FROM card_bills")
+    .all()
+    .filter((b) => accType.has(b.account_id))
+    .map((b) => ({ id: b.id, accountId: b.account_id, dueDate: b.due_date, totalAmount: b.total_amount }));
+  const cats = new Map(
+    db.prepare("SELECT id, parent_id, name_pt FROM tx_categories").all()
+      .map((c) => [c.id, { name: c.name_pt, parentId: c.parent_id }])
+  );
+  return { accounts, txs, bills, cats };
+}
+
+const FONTES = new Set(["cartao", "conta", "tudo"]);
+
+app.get("/api/gastos", async (req, res) => {
+  const fonte = FONTES.has(req.query.fonte) ? req.query.fonte : "cartao";
+  const n = Math.min(24, Math.max(1, parseInt(req.query.n, 10) || 3));
+
+  let st = db.prepare("SELECT * FROM gastos_sync WHERE id = 1").get();
+  let erro = null;
+  const velho = !st?.last_sync_at || Date.now() - Date.parse(st.last_sync_at) > GASTOS_TTL_MS;
+  if (!DEMO && velho) {
+    const r = await syncGastos();
+    if (!r.ok) erro = r.error;
+    st = db.prepare("SELECT * FROM gastos_sync WHERE id = 1").get();
+  }
+
+  const { accounts, txs, bills, cats } = loadGastosInputs();
+  if (!txs.length)
+    return res.status(erro ? 502 : 200).json({ empty: true, ...(erro ? { error: erro } : {}), ...(DEMO ? { demo: true } : {}) });
+
+  const g = buildGastos({ txs, bills, cats, fonte, n, holders: CARD_HOLDERS, today: todaySP() });
+  res.json({
+    ...g,
+    accounts: accounts.map((a) => {
+      const cd = a.credit_data ? JSON.parse(a.credit_data) : null;
+      return {
+        id: a.id,
+        type: a.type,
+        subtype: a.subtype,
+        name: a.name,
+        balance: a.balance,
+        creditLimit: cd?.creditLimit ?? null,
+        available: cd?.availableCreditLimit ?? null,
+        dueDate: cd?.balanceDueDate || null,
+      };
+    }),
+    sync: { lastSyncAt: st?.last_sync_at || null, stale: !!erro, error: erro },
+    ...(DEMO ? { demo: true } : {}),
+  });
+});
+
 // Healthcheck do Docker: não depende da Pluggy
 app.get("/api/health", (_req, res) => {
   const last = db.prepare("SELECT date, total_balance FROM snapshots ORDER BY date DESC LIMIT 1").get();
@@ -832,6 +1076,10 @@ async function coletaDiaria(hora) {
   }
   const { errors } = await updateBenchmarks(db, { startISO: firstSnapshotDate() });
   for (const [serie, msg] of Object.entries(errors)) console.error(`[${hora}] Falha ao atualizar ${serie}:`, msg);
+  // gastos junto: mesmo horário pós auto-sync do item
+  const g = await syncGastos();
+  if (g.ok) console.log(`💳 [${hora}] Gastos: ${g.txs} lançamentos em ${g.accounts} conta(s)`);
+  else console.error(`[${hora}] Falha ao sincronizar gastos:`, g.error);
 }
 
 if (!DEMO) {
