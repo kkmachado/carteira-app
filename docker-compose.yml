@@ -5,7 +5,11 @@ services:
     container_name: carteira
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-3000}:3000"
+      # mode: host — o routing mesh (ingress) do Swarm não entrega no homelab
+      - target: 3000
+        published: ${HOST_PORT:-3000}
+        protocol: tcp
+        mode: host
     environment:
       - PLUGGY_CLIENT_ID=${PLUGGY_CLIENT_ID}
       - PLUGGY_CLIENT_SECRET=${PLUGGY_CLIENT_SECRET}
