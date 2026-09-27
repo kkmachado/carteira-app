@@ -2,7 +2,6 @@ services:
   carteira:
     build: .
     image: carteira-app:local
-    pull_policy: build
     container_name: carteira
     restart: unless-stopped
     ports:
