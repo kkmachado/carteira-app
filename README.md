@@ -38,7 +38,8 @@ atualiza sozinha 1x/dia e recusa `PATCH /items/{id}`. O frescor dos dados vem em
 Coleta automática 2x/dia às 12:00 e 19:00 (America/Sao_Paulo): a primeira depois do
 auto-sync da Pluggy, a segunda depois do fechamento da B3 e das publicações
 vespertinas do SGS.
-O banco fica em `./data/carteira.db` (volume persistente).
+O banco fica em `./data/carteira.db` rodando local; no Docker, em
+`/opt/carteira/data/carteira.db` no host (bind mount para `/app/data`).
 
 ## Observações
 
