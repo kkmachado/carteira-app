@@ -387,6 +387,20 @@
   .gtx .t small { color:var(--subtle); margin-left:6px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10.5px; }
   .gtx .a { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; }
   .gtx .a.neg { color:var(--pri); }
+  .gtx.fora { opacity:.5; }
+  .gtx .why { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--mut);
+              background:var(--sec); border-radius:5px; padding:1px 5px; margin-left:6px; }
+  .hbar.ref .hfill { background:color-mix(in srgb, var(--mut) 35%, transparent); color:var(--fg); }
+  .hbar.ref .l, .hbar.ref .v { color:var(--subtle); }
+  .gper { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:14px 0 2px;
+          font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10.5px; letter-spacing:.08em;
+          text-transform:uppercase; color:var(--mut); }
+  .gper:first-child { margin-top:2px; }
+  .gper b { color:var(--fg); font-weight:500; letter-spacing:0; }
+  .gtools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .gtools input[type=search] { flex:1; min-width:160px; height:34px; font:inherit; font-size:13px; padding:0 10px;
+          border:1px solid var(--border); border-radius:8px; background:var(--sec); color:var(--fg); }
+  .gtools label { font-size:11.5px; color:var(--mut); display:flex; align-items:center; gap:6px; cursor:pointer; }
 
   .glist .it { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:8px 0;
                border-top:1px solid var(--border); }
@@ -415,6 +429,9 @@
     .rank .hbar { grid-template-columns:minmax(0,110px) 1fr 88px; }
     .ghero-v { font-size:32px; }
     .ghero-foot .sep { display:none; }
+    /* no iPhone a categoria/cartão da linha do extrato desce para baixo do nome */
+    .gtx .t { white-space:normal; }
+    .gtx .t small { display:block; margin:1px 0 0; }
   }
 </style>
 </head>
@@ -561,6 +578,7 @@
     <nav class="tabs" id="gtabs" role="tablist">
       <button class="tab" data-gtab="resumo"  role="tab">Resumo</button>
       <button class="tab" data-gtab="cat"     role="tab">Categorias</button>
+      <button class="tab" data-gtab="extrato" role="tab">Extrato</button>
       <button class="tab" data-gtab="lugares" role="tab">Lugares</button>
       <button class="tab" data-gtab="cartoes" role="tab">Cartões</button>
     </nav>
@@ -582,6 +600,17 @@
       <div class="card">
         <h2 class="row"><span>Para onde vai o dinheiro</span><span style="text-transform:none;letter-spacing:0">toque para ver os lançamentos</span></h2>
         <div id="gRank"></div>
+      </div>
+    </section>
+
+    <section data-gpanel="extrato" role="tabpanel" hidden>
+      <div class="card">
+        <h2 class="row"><span>Lançamentos</span><span id="gExtCount" style="text-transform:none;letter-spacing:0"></span></h2>
+        <div class="gtools">
+          <input type="search" id="gExtQ" placeholder="buscar estabelecimento, categoria ou final do cartão" autocomplete="off" />
+          <label><input type="checkbox" id="gExtFora" /> incluir o que fica fora do total</label>
+        </div>
+        <div id="gExt"></div>
       </div>
     </section>
 
@@ -1656,8 +1685,14 @@ function renderPendingManual() {
    Todo cálculo vem pronto do backend (lib/gastos.js); aqui só apresentação.
    ====================================================================== */
 const G_FONTES = [['cartao','Cartão'],['conta','Conta'],['tudo','Tudo']];
-const G_JANELAS = [['3','3'],['6','6'],['12','12']];
-const G_TABS = ['resumo','cat','lugares','cartoes'];
+/* "atual" = fatura aberta (cartão) ou mês corrente (conta); 3/6/12 são só
+   períodos fechados — comparar completo com completo. */
+const G_JANELAS = [['atual','Atual'],['3','3'],['6','6'],['12','12']];
+const G_TABS = ['resumo','cat','extrato','lugares','cartoes'];
+/* por que um lançamento do extrato não entra no total */
+const G_FORA = { pagamento:'pagamento da fatura', pagamento_fatura:'fatura já contada no cartão',
+  transferencia_propria:'entre suas contas', investimento:'investimento', receita:'entrada' };
+const gExt = { q:'', fora:false, limit:300 };
 /* Cinco categorias de maior peso ganham cor; o resto vira "Outras" em cinza. */
 const G_CORES = ['--info','--c3','--c5','--c4','--c2'];
 const WARN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
@@ -1673,6 +1708,9 @@ const gCache = {};                 // "fonte|n" → resposta (trocar de aba não
 const gOpenCats = new Set();       // categorias expandidas no ranking
 let gData = null;
 
+/* Rótulo dos gráficos: mês/ano do período. No cartão, o mês de vencimento da
+   fatura ("ago/26" = a que vence em agosto); o dia exato fica no tooltip. */
+const mesAno = key => MESES[Number(key.slice(5, 7)) - 1] + '/' + key.slice(2, 4);
 const unidade = () => gstate.fonte === 'cartao' ? ['fatura','faturas'] : ['mês','meses'];
 
 function setMode(m) {
@@ -1720,7 +1758,9 @@ document.querySelectorAll('#gtabs .tab').forEach(b => b.addEventListener('click'
 function renderGChips() {
   chips('gFonte', G_FONTES, gstate.fonte, v => { gstate.fonte = v; lsSet('gFonte', v); gOpenCats.clear(); renderGTabs(); loadGastos(); });
   const [u1, uN] = unidade();
-  chips('gJanela', G_JANELAS.map(([v, l]) => [v, l + ' ' + uN]), gstate.n, v => { gstate.n = v; lsSet('gN', v); loadGastos(); });
+  chips('gJanela', G_JANELAS.map(([v, l]) => [v, v === 'atual'
+    ? (gstate.fonte === 'cartao' ? 'Fatura atual' : 'Mês atual') : l + ' ' + uN]), gstate.n,
+    v => { gstate.n = v; lsSet('gN', v); gExt.limit = 300; loadGastos(); });
 }
 
 const gBanner = (cls, msg) => {
@@ -1769,6 +1809,7 @@ function renderGastos() {
   renderGEvol(g);
   renderGStack(g);
   renderGRank(g);
+  renderGExtrato(g);
   renderGLugares(g);
   renderGCartoes(g);
   renderGFoot(g);
@@ -1777,10 +1818,11 @@ function renderGastos() {
 function renderGHero(g) {
   const [u1, uN] = unidade();
   const n = g.periods.length;
-  document.getElementById('gHeroL').textContent =
-    gstate.fonte === 'cartao' ? `Gastos no cartão · ${n} ${n > 1 ? uN : u1}`
-    : gstate.fonte === 'conta' ? `Gastos na conta · ${n} ${n > 1 ? uN : u1}`
-    : `Gastos na conta e no cartão · ${n} ${n > 1 ? uN : u1}`;
+  const onde = gstate.fonte === 'cartao' ? 'no cartão' : gstate.fonte === 'conta' ? 'na conta' : 'na conta e no cartão';
+  const atual = g.n === 'atual' ? g.periods[0] : null;
+  document.getElementById('gHeroL').textContent = atual
+    ? (gstate.fonte === 'cartao' ? `Fatura atual · ${atual.label} · aberta` : `Gastos ${onde} · ${atual.label} até hoje`)
+    : `Gastos ${onde} · ${n} ${n > 1 ? uN : u1} ${gstate.fonte === 'cartao' ? (n > 1 ? 'fechadas' : 'fechada') : (n > 1 ? 'fechados' : 'fechado')}`;
   document.getElementById('gTotal').textContent = BRL2(g.totals.total);
   const sec = [
     `${g.totals.count}<small>lançamentos</small>`,
@@ -1791,11 +1833,20 @@ function renderGHero(g) {
 
   const L = document.getElementById('gRightL'), R = document.getElementById('gRight'), S = document.getElementById('gRightSub');
   if (gstate.fonte === 'cartao') {
-    const aberta = g.periods.find(p => p.aberta);
     const cartao = (g.accounts || []).find(a => a.type === 'CREDIT');
-    L.textContent = 'Fatura aberta' + (aberta ? ' · ' + aberta.label.replace(' · aberta', '') : '');
-    R.textContent = aberta ? BRL2(aberta.total) : '—';
-    S.textContent = cartao && cartao.available != null ? 'limite disponível ' + BRL(cartao.available) : '';
+    const lim = cartao && cartao.available != null ? 'limite disponível ' + BRL(cartao.available) : '';
+    if (atual) {
+      // quanto a aberta já representa da média das 3 anteriores
+      const refs = (g.ref || []).filter(r => r.total > 0);
+      const media = refs.length ? refs.reduce((s2, r) => s2 + r.total, 0) / refs.length : 0;
+      L.textContent = 'Média das 3 anteriores';
+      R.textContent = media ? BRL2(media) : '—';
+      S.textContent = (media ? `a aberta já está em ${PCT(atual.total / media * 100)} · ` : '') + lim;
+    } else {
+      L.textContent = 'Maior fatura';
+      R.textContent = g.totals.maior ? BRL2(g.totals.maior.total) : '—';
+      S.textContent = (g.totals.maior ? g.totals.maior.label + ' · ' : '') + lim;
+    }
   } else {
     L.textContent = 'Entradas no período';
     R.textContent = BRL2(g.totals.entradas);
@@ -1806,14 +1857,24 @@ function renderGHero(g) {
 
 function renderGEvol(g) {
   const [u1] = unidade();
-  document.getElementById('gEvolT').textContent = gstate.fonte === 'cartao' ? 'Evolução por fatura' : 'Evolução por mês';
-  const max = Math.max(1, ...g.periods.map(p => p.total));
-  document.getElementById('gEvol').innerHTML = g.periods.map(p => {
+  const ref = g.n === 'atual' ? (g.ref || []).map(r => ({ ...r, isRef: true })) : [];
+  document.getElementById('gEvolT').textContent = g.n === 'atual'
+    ? (gstate.fonte === 'cartao' ? 'Fatura atual vs as 3 anteriores' : 'Mês atual vs os 3 anteriores')
+    : gstate.fonte === 'cartao' ? 'Evolução por fatura' : 'Evolução por mês';
+  const linhas = [...ref, ...g.periods];
+  const max = Math.max(1, ...linhas.map(p => p.total));
+  document.getElementById('gEvol').innerHTML = linhas.map(p => {
+    if (p.isRef) {
+      const pct = Math.max(0, p.total / max * 100);
+      return `<div class="hbar ref" title="${esc(p.label)}"><span class="l">${mesAno(p.key)}</span>
+        <div class="htrack"><div class="hfill" style="width:${pct.toFixed(1)}%">${pct > 28 ? p.count + ' lanç.' : ''}</div></div>
+        <span class="v">${BRL2(p.total)}</span></div>`;
+    }
     const pct = Math.max(0, p.total / max * 100);
     const cls = p.aberta ? 'aberta' : p.pico ? 'pico' : '';
     const nota = p.aberta ? (gstate.fonte === 'cartao' ? 'parcial · aberta' : 'parcial')
       : p.diff != null && Math.abs(p.diff) > 1 ? `fatura ${BRL2(p.pluggyTotal)}` : '';
-    const rotulo = p.label.replace(' · aberta', '').replace('venc. ', '');
+    const rotulo = mesAno(p.key);
     return `<div class="hbar" title="${esc(p.label)}: ${BRL2(p.total)} · ${p.count} lançamentos">
       <span class="l">${esc(rotulo)}</span>
       <div class="htrack"><div class="hfill ${cls}" style="width:${pct.toFixed(1)}%">${pct > 28 ? p.count + ' lanç.' : ''}</div></div>
@@ -1847,8 +1908,8 @@ function renderGStack(g) {
     const segs = top.map(n => [n, (pos.find(c => c.name === n) || {}).value || 0]).filter(([, v]) => v > 0);
     const outras = pos.filter(c => !top.includes(c.name)).reduce((s, c) => s + c.value, 0);
     if (outras > 0) segs.push(['Outras', outras]);
-    const rotulo = p.label.replace(' · aberta', '').replace('venc. ', '');
-    return `<div class="hbar">
+    const rotulo = mesAno(p.key);
+    return `<div class="hbar" title="${esc(p.label)}">
       <span class="l">${esc(rotulo)}</span>
       <div><div class="stack" style="width:${(soma / max * 100).toFixed(1)}%">${segs.map(([n, v]) =>
         `<div class="seg" title="${esc(n)}: ${BRL2(v)} · ${Math.round(v / soma * 100)}%" style="width:${(v / soma * 100).toFixed(2)}%;background:${n === 'Outras' ? 'var(--subtle)' : gCorDe(top, n)}"></div>`).join('')}</div></div>
@@ -1859,12 +1920,48 @@ function renderGStack(g) {
     `<span><span class="dot" style="background:${n === 'Outras' ? 'var(--subtle)' : gCorDe(top, n)}"></span>${esc(n)}</span>`).join('');
 }
 
-function gTxHTML(t) {
-  const extra = [t.card && 'final ' + t.card, t.parc, t.intl, t.pend && 'pendente'].filter(Boolean).join(' · ');
-  return `<div class="gtx"><span class="d">${dBR(t.d).slice(0, 5)}</span>
-    <span class="t" title="${esc(t.desc)}">${esc(t.m || t.desc)}${extra ? `<small>${esc(extra)}</small>` : ''}</span>
-    <span class="a ${t.v < 0 ? 'neg' : ''}">${BRL2(t.v)}</span></div>`;
+/* `v` > 0 é saída (gasto), < 0 é entrada/crédito — este sai em verde com "+". */
+function gTxHTML(t, { comCat = false, comConta = false } = {}) {
+  const extra = [comCat && t.cat, comConta && (t.conta === 'cartao' ? 'cartão' : 'conta'), t.card && 'final ' + t.card,
+    t.parc, t.intl, t.pend && 'pendente'].filter(Boolean).join(' · ');
+  const why = t.fora ? `<span class="why">${G_FORA[t.k] || 'fora'}</span>` : t.k === 'estorno' ? '<span class="why">estorno</span>' : '';
+  return `<div class="gtx ${t.fora ? 'fora' : ''}"><span class="d">${dBR(t.d).slice(0, 5)}</span>
+    <span class="t" title="${esc(t.desc)}">${esc(t.m || t.desc)}${why}${extra ? `<small>${esc(extra)}</small>` : ''}</span>
+    <span class="a ${t.v < 0 ? 'neg' : ''}">${t.v < 0 ? '+' + BRL2(-t.v) : BRL2(t.v)}</span></div>`;
 }
+
+/* Extrato: lançamento a lançamento, agrupado por fatura/mês. Por padrão só o que
+   entra no total; o checkbox traz pagamentos, transferências, aplicações e
+   entradas, esmaecidos e com o motivo. */
+function renderGExtrato(g) {
+  const q = gExt.q.trim().toLowerCase();
+  const lista = g.txs.filter(t => (gExt.fora || !t.fora) &&
+    (!q || [t.m, t.desc, t.cat, t.card].some(x => x && String(x).toLowerCase().includes(q))));
+  const porP = new Map();
+  for (const t of lista) { if (!porP.has(t.p)) porP.set(t.p, []); porP.get(t.p).push(t); }
+  const labelDe = Object.fromEntries(g.periods.map(p => [p.key, p.label]));
+  let shown = 0, html = '';
+  for (const key of [...porP.keys()].sort().reverse()) {
+    if (shown >= gExt.limit) break;
+    const ts = porP.get(key);
+    const soma = ts.filter(t => !t.fora).reduce((s2, t) => s2 + t.v, 0);
+    html += `<div class="gper"><span>${esc(labelDe[key] || key)}</span><b>${BRL2(soma)}</b></div>`;
+    const cabe = ts.slice(0, gExt.limit - shown);
+    html += cabe.map(t => gTxHTML(t, { comCat: true, comConta: gstate.fonte === 'tudo' })).join('');
+    shown += cabe.length;
+  }
+  if (lista.length > shown) html += `<div style="text-align:center;margin-top:10px"><button class="btn" id="gExtMore">mostrar mais ${Math.min(300, lista.length - shown)} de ${lista.length - shown}</button></div>`;
+  document.getElementById('gExt').innerHTML = html || '<div class="note">nenhum lançamento</div>';
+  document.getElementById('gExtCount').textContent = `${lista.length} lançamento${lista.length === 1 ? '' : 's'}`;
+  const more = document.getElementById('gExtMore');
+  if (more) more.addEventListener('click', () => { gExt.limit += 300; renderGExtrato(g); });
+}
+document.getElementById('gExtQ').addEventListener('input', e => {
+  gExt.q = e.target.value; gExt.limit = 300; if (gData) renderGExtrato(gData);
+});
+document.getElementById('gExtFora').addEventListener('change', e => {
+  gExt.fora = e.target.checked; gExt.limit = 300; if (gData) renderGExtrato(gData);
+});
 
 function renderGRank(g) {
   const top = gTopCats(g);
@@ -1873,7 +1970,7 @@ function renderGRank(g) {
   const el = document.getElementById('gRank');
   el.innerHTML = lista.map(c => {
     const open = gOpenCats.has(c.name);
-    const txs = open ? g.txs.filter(t => t.cat === c.name) : [];
+    const txs = open ? g.txs.filter(t => !t.fora && t.cat === c.name) : [];
     return `<div class="rank">
       <div class="hbar" data-cat="${esc(c.name)}" role="button" tabindex="0" aria-expanded="${open}">
         <span class="l">${esc(c.name)}</span>
@@ -1905,7 +2002,9 @@ function renderGLugares(g) {
   // fatura é feminino, mês masculino
   document.getElementById('gRecT').textContent = gstate.fonte === 'cartao'
     ? `Presentes em todas as ${fech} faturas fechadas` : `Presentes em todos os ${fech} meses fechados`;
-  document.getElementById('gRec').innerHTML = fech < 2
+  document.getElementById('gRec').innerHTML = g.n === 'atual'
+    ? `<div class="note">recorrência compara períodos fechados — escolha 3, 6 ou 12 ${uN}</div>`
+    : fech < 2
     ? `<div class="note">precisa de pelo menos 2 ${uN} ${gstate.fonte === 'cartao' ? 'fechadas' : 'fechados'} na janela</div>`
     : g.recurring.slice(0, 12).map(r => `<div class="it">
       <div style="min-width:0"><div class="n">${esc(r.name)}</div>

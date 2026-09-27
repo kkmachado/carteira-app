@@ -78,6 +78,7 @@ test("normalizeMerchant: formato fixo e colado caem no mesmo nome", () => {
   assert.equal(normalizeMerchant("8400  GRSA CARBON BLIN BARUERI       BRA"), "GRSA CARBON BLIN");
   assert.equal(normalizeMerchant("MERCADOLIVRE*MERCADOL  Jundia        BRA"), "MERCADOLIVRE");
   assert.equal(normalizeMerchant("PET SHOP DO SHEIK LTD  SAO PAULO     BRA"), "PET SHOP DO SHEIK LTD");
+  assert.equal(normalizeMerchant("TagItau     *RecargaSAO PAULOBRA"), "TAGITAU*RECARGA");
 });
 
 test("buildGastos (cartão): reconcilia com a fatura, exclui pagamento, abate estorno e acha o outlier", () => {
@@ -96,11 +97,17 @@ test("buildGastos (cartão): reconcilia com a fatura, exclui pagamento, abate es
     card({ id: "9", amount: 10.8, amountBrl: 58, currency: "USD", categoryId: "08000000", description: "OPENROUTER, INCNEW YORKUSA", billId: "b-ago", date: "2026-07-15T03:00:00Z", cardNumber: "2505" }),
   ];
   const holders = { 2505: "Carlos", 2618: "Juliana" };
-  const g = buildGastos({ txs, bills: BILLS, cats, fonte: "cartao", n: 3, holders, today: "2026-08-20" });
+  const g = buildGastos({ txs, bills: BILLS, cats, fonte: "cartao", n: 2, holders, today: "2026-08-20" });
 
   assert.equal(g.openMonth, "2026-09");
-  assert.deepEqual(g.periods.map((p) => p.key), ["2026-07", "2026-08", "2026-09"]);
-  const [jul, ago, set] = g.periods;
+  // janela numérica = só faturas fechadas
+  assert.deepEqual(g.periods.map((p) => p.key), ["2026-07", "2026-08"]);
+  const [jul, ago] = g.periods;
+  const atual = buildGastos({ txs, bills: BILLS, cats, fonte: "cartao", n: "atual", holders, today: "2026-08-20" });
+  assert.deepEqual(atual.periods.map((p) => p.key), ["2026-09"]);
+  const set = atual.periods[0];
+  assert.equal(set.label, "venc. 06/09"); // dia do vencimento herdado da última fechada
+  assert.deepEqual(atual.ref.map((r) => [r.key, r.total]), [["2026-06", 0], ["2026-07", 300], ["2026-08", 10058]]);
   assert.equal(jul.total, 300);
   assert.equal(jul.diff, 0);
   assert.equal(ago.total, 8000 + 2040 - 40 + 58);
@@ -117,6 +124,10 @@ test("buildGastos (cartão): reconcilia com a fatura, exclui pagamento, abate es
   assert.equal(g.merchants.find((m) => m.name === "LEMMAR").atipico, true);
   assert.deepEqual(g.holders.map((h) => h.name), ["Carlos", "Juliana"]);
   assert.equal(g.holders[0].total, 8058 + 300);
+  // lista completa: o pagamento aparece, marcado como fora do total
+  const pag = g.txs.find((t) => t.k === "pagamento");
+  assert.equal(pag.fora, true);
+  assert.equal(g.txs.filter((t) => !t.fora).length, 5);
   // MERCADO A aparece nas duas faturas fechadas: recorrente
   assert.deepEqual(g.recurring.map((r) => r.name), ["MERCADO A"]);
   assert.equal(g.totals.fora.pagamentos, 300);
@@ -131,9 +142,11 @@ test("buildGastos (tudo): mês civil nas duas fontes, e a fatura paga pela conta
     bank({ id: "4", amount: -120, categoryId: "08000000", description: "Compra débito Loja", date: "2026-08-10T10:00:00Z" }),
     bank({ id: "5", amount: 5000, categoryId: "05000000", description: "TED recebida", date: "2026-08-05T10:00:00Z" }),
   ];
-  const g = buildGastos({ txs, bills: BILLS, cats, fonte: "tudo", n: 2, today: "2026-08-20" });
-  assert.deepEqual(g.periods.map((p) => p.key), ["2026-07", "2026-08"]);
-  const [jul, ago] = g.periods;
+  const jul = buildGastos({ txs, bills: BILLS, cats, fonte: "tudo", n: 1, today: "2026-08-20" }).periods[0];
+  const g = buildGastos({ txs, bills: BILLS, cats, fonte: "tudo", n: "atual", today: "2026-08-20" });
+  assert.equal(jul.key, "2026-07");
+  const [ago] = g.periods;
+  assert.equal(ago.key, "2026-08");
   assert.equal(jul.total, 10000); // compra de julho, embora a fatura vença em agosto
   assert.equal(ago.total, 70 + 8000 + 120);
   assert.equal(ago.entradas, 5000);

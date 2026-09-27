@@ -66,7 +66,9 @@ Aplicação pessoal de acompanhamento de carteira de investimentos (renda fixa b
 
 ## Gastos (conta corrente, poupança, cartão)
 
-- Seletor **Investimentos | Gastos** no topo troca a página inteira (`state.mode`, `localStorage.mode`, hash `#gastos/<aba>`); em Gastos o hero de rendimento some e entram abas próprias (Resumo · Categorias · Lugares · Cartões). Fonte `Cartão · Conta · Tudo` e janela `3 · 6 · 12`.
+- Seletor **Investimentos | Gastos** no topo troca a página inteira (`state.mode`, `localStorage.mode`, hash `#gastos/<aba>`); em Gastos o hero de rendimento some e entram abas próprias (Resumo · Categorias · Extrato · Lugares · Cartões). Fonte `Cartão · Conta · Tudo` e janela `Atual · 3 · 6 · 12`.
+- **Janelas 3/6/12 são só períodos fechados** (compara completo com completo). `Atual` (`n=atual`) é a fatura aberta ou o mês corrente, ainda recebendo lançamentos, comparada na tela com as 3 anteriores (`ref`); o vencimento da aberta é estimado pelo dia do vencimento da última fechada.
+- **Extrato**: lançamento a lançamento, agrupado por fatura/mês. `txs` traz também o que fica fora do total, com `fora: true` e o motivo em `k` (pagamento, transferência própria, investimento, entrada); a tela só mostra esses com o checkbox ligado. Convenção de sinal: `v > 0` saída, `v < 0` entrada/crédito.
 - Mesmo item MeuPluggy: `/accounts?itemId=`, `/v2/transactions?accountId=` e `/bills?accountId=`. **`GET /transactions` (v1) responde 410**; a v2 pagina por cursor e `next` já vem como query string pronta (`?accountId=…&after=…`). `pageSize` e `cursor` são recusados.
 - `syncGastos()` espelha tudo no SQLite (`bank_accounts`, `bank_txs`, `card_bills`, `tx_categories`, `gastos_sync`): roda nas coletas das 12:00/19:00 e sob demanda quando o último sync tem mais de 12h. **Histórico não é apagado** (a janela da Pluggy anda); só sai `PENDING` que sumiu da resposta (virou POSTED com outro id ou foi cancelado). Pluggy fora → cache com `sync.stale`.
 - Cálculo puro em `lib/gastos.js` (`buildGastos`), testado em `test/gastos.test.js`.

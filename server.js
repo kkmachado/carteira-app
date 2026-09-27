@@ -1004,7 +1004,8 @@ const FONTES = new Set(["cartao", "conta", "tudo"]);
 
 app.get("/api/gastos", async (req, res) => {
   const fonte = FONTES.has(req.query.fonte) ? req.query.fonte : "cartao";
-  const n = Math.min(24, Math.max(1, parseInt(req.query.n, 10) || 3));
+  // n = quantidade de períodos fechados, ou "atual" (fatura aberta / mês corrente)
+  const n = req.query.n === "atual" ? "atual" : Math.min(24, Math.max(1, parseInt(req.query.n, 10) || 3));
 
   let st = db.prepare("SELECT * FROM gastos_sync WHERE id = 1").get();
   let erro = null;
