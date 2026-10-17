@@ -1410,6 +1410,10 @@ function detailHTML(a) {
   ];
   if (a.quantity > 0 && a.value != null && Math.abs(a.value - 1) > 0.005)
     itens.push(dItem('Posição', `${NUM(a.quantity, 2)} un.`, 'a ' + BRL2(a.value)));
+  // Tesouro reprecificado pelo PU oficial: a Pluggy congelou o preço (out/2026)
+  if (a.priceSource === 'tesouro')
+    itens.push(dItem('Preço', `Tesouro Transparente, ${dBR(a.priceDate)}`,
+      a.pluggy?.value != null ? 'Pluggy informa ' + BRL2(a.pluggy.value) : ''));
   if (a.issuer) itens.push(dItem('Emissor', esc(a.issuer), a.issuerCNPJ || ''));
   if (a.code || a.isin) itens.push(dItem('Código', esc(a.code || a.isin), a.isin && a.code !== a.isin ? 'ISIN ' + esc(a.isin) : ''));
 

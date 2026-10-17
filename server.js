@@ -20,6 +20,7 @@ import {
   grossUpFactorWeighted,
 } from "./lib/performance.js";
 import { buildGastos } from "./lib/gastos.js";
+import { TESOURO_CSV_URL, parseTesouroCsv, repriceTreasuries } from "./lib/tesouro.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_ITEM_ID, PORT = 3000, DB_PATH } = process.env;
@@ -127,6 +128,20 @@ db.exec(`
     name_pt TEXT,
     fetched_at TEXT NOT NULL
   );
+  -- Preço oficial dos Tesouros (Tesouro Transparente): a Pluggy congela o PU.
+  CREATE TABLE IF NOT EXISTS tesouro_precos (
+    tipo TEXT NOT NULL,              -- "Tesouro Prefixado", "Tesouro IPCA+"…
+    vencimento TEXT NOT NULL,        -- YYYY-MM-DD
+    date TEXT NOT NULL,              -- data base do preço
+    pu REAL NOT NULL,                -- PU base (= venda)
+    taxa REAL,                       -- taxa de venda (% a.a.)
+    PRIMARY KEY (tipo, vencimento, date)
+  );
+  CREATE TABLE IF NOT EXISTS tesouro_sync (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    fetched_at TEXT,
+    last_error TEXT
+  );
   CREATE TABLE IF NOT EXISTS gastos_sync (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     last_sync_at TEXT,
@@ -228,7 +243,7 @@ function saveSnapshot(investments, lastUpdatedAt) {
     return null;
   }
   const date = snapshotDateFor(lastUpdatedAt);
-  const payload = [...investments, ...manualInvestments(date)];
+  const payload = [...repriceTreasuries(investments, date, precosTitulo), ...manualInvestments(date)];
   const totals = totalsOf(payload);
   writeSnapshot(date, payload, totals);
 
@@ -378,6 +393,77 @@ function rebuildManualInSnapshots(fromISO) {
         ...JSON.parse(row.payload).filter((a) => !isManual(a)),
         ...manualInvestments(row.date),
       ];
+      writeSnapshot(row.date, payload, totalsOf(payload));
+    }
+  })();
+  return rows.length;
+}
+
+/* ---------- Tesouro: preço oficial ----------
+   O PU dos Tesouros que vem da Pluggy congelou em out/2026 (o `date` atualiza, o
+   `value` não), e a carteira ficou ~R$ 8,5 mil abaixo do app do Itaú. A fonte
+   passa a ser o CSV público do Tesouro Transparente: quantidade × PU base do dia
+   (ver lib/tesouro.js). O CSV sai com 1 dia útil de atraso, então o snapshot do dia
+   usa o último PU publicado e é reescrito quando o do próprio dia chega. Sem preço
+   oficial recente, fica o valor da Pluggy — os números originais dela ficam no
+   payload, em `pluggy`. */
+const TESOURO_TTL_MS = 6 * 60 * 60 * 1000;
+const precosStmt = db.prepare(
+  "SELECT date, pu FROM tesouro_precos WHERE tipo = ? AND vencimento = ? ORDER BY date ASC"
+);
+const precosTitulo = (tipo, vencimento) => precosStmt.all(tipo, vencimento);
+
+async function updateTesouro({ force = false } = {}) {
+  const last = db.prepare("SELECT fetched_at FROM tesouro_sync WHERE id = 1").get()?.fetched_at;
+  if (!force && last && Date.now() - Date.parse(last) < TESOURO_TTL_MS) return { skipped: true };
+  try {
+    const res = await fetch(TESOURO_CSV_URL, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) throw new Error(`Tesouro Transparente HTTP ${res.status}`);
+    // o arquivo tem o histórico desde 2002: guarda só a partir de pouco antes do 1º snapshot
+    const first = firstSnapshotDate();
+    const desde = new Date(Date.parse(`${first || todaySP()}T12:00:00Z`) - 15 * 86400000).toISOString().slice(0, 10);
+    const rows = parseTesouroCsv(await res.text(), desde);
+    if (!rows.length) throw new Error("Tesouro Transparente: CSV sem preços no período");
+
+    // menor data com preço novo ou revisto: os snapshots dali em diante são reprecificados
+    const atual = db.prepare("SELECT pu FROM tesouro_precos WHERE tipo = ? AND vencimento = ? AND date = ?");
+    const up = db.prepare(
+      `INSERT INTO tesouro_precos (tipo, vencimento, date, pu, taxa) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(tipo, vencimento, date) DO UPDATE SET pu=excluded.pu, taxa=excluded.taxa`
+    );
+    let desdeMudanca = null;
+    db.transaction(() => {
+      for (const r of rows) {
+        const old = atual.get(r.tipo, r.vencimento, r.date);
+        if (old && old.pu === r.pu) continue;
+        up.run(r.tipo, r.vencimento, r.date, r.pu, r.taxa);
+        if (!desdeMudanca || r.date < desdeMudanca) desdeMudanca = r.date;
+      }
+      db.prepare(
+        `INSERT INTO tesouro_sync (id, fetched_at, last_error) VALUES (1, ?, NULL)
+         ON CONFLICT(id) DO UPDATE SET fetched_at=excluded.fetched_at, last_error=NULL`
+      ).run(new Date().toISOString());
+    })();
+    const snapshots = desdeMudanca ? repriceTesouroInSnapshots(desdeMudanca) : 0;
+    return { ok: true, desde: desdeMudanca, snapshots };
+  } catch (err) {
+    db.prepare(
+      `INSERT INTO tesouro_sync (id, fetched_at, last_error) VALUES (1, NULL, ?)
+       ON CONFLICT(id) DO UPDATE SET last_error=excluded.last_error`
+    ).run(String(err.message || err));
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+/* Reaplica o preço oficial nos snapshots a partir de `fromISO`. Idempotente: parte
+   sempre dos números originais da Pluggy guardados no payload. */
+function repriceTesouroInSnapshots(fromISO) {
+  const rows = db
+    .prepare("SELECT date, payload FROM snapshots WHERE date >= ? ORDER BY date ASC")
+    .all(fromISO || "0000-00-00");
+  db.transaction(() => {
+    for (const row of rows) {
+      const payload = repriceTreasuries(JSON.parse(row.payload), row.date, precosTitulo);
       writeSnapshot(row.date, payload, totalsOf(payload));
     }
   })();
@@ -1062,6 +1148,10 @@ app.get("/api/health", (_req, res) => {
    é fechamento consolidado. De quebra, é uma segunda chance para o snapshot quando
    a Pluggy está fora ao meio-dia; o upsert por data mantém um snapshot por dia. */
 async function coletaDiaria(hora) {
+  // antes do snapshot: o dia já nasce com o preço oficial mais recente
+  const t = await updateTesouro();
+  if (t.ok) console.log(`🏛️  [${hora}] Tesouro: preços desde ${t.desde || "—"}, ${t.snapshots} snapshot(s) reprecificado(s)`);
+  else if (t.error) console.error(`[${hora}] Falha ao atualizar preços do Tesouro:`, t.error);
   try {
     // o item vem junto só pela data da coleta: um dia em que a Pluggy não
     // sincronizou reescreve o snapshot daquele dia em vez de criar um ponto novo
@@ -1084,6 +1174,12 @@ async function coletaDiaria(hora) {
 }
 
 if (!DEMO) {
+  /* No boot: busca os preços e reprecifica o histórico inteiro (primeira vez) ou
+     o que mudou. Não segura o listen — o CSV tem ~14 MB. */
+  updateTesouro({ force: true }).then((t) => {
+    if (t.ok) console.log(`🏛️  Tesouro: preços desde ${t.desde || "—"}, ${t.snapshots} snapshot(s) reprecificado(s)`);
+    else console.error("Falha ao atualizar preços do Tesouro:", t.error);
+  });
   cron.schedule("0 12 * * *", () => coletaDiaria("12:00"), { timezone: "America/Sao_Paulo" });
   cron.schedule("0 19 * * *", () => coletaDiaria("19:00"), { timezone: "America/Sao_Paulo" });
 }
