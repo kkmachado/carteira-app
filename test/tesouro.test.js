@@ -6,7 +6,12 @@ import {
   repricedAsset,
   precoVigente,
   repriceTreasuries,
+  parseAnbimaMs,
+  anbimaUrl,
 } from "../lib/tesouro.js";
+
+const close = (a, b, eps = 1e-9) =>
+  assert.ok(Math.abs(a - b) < eps, `esperado ≈ ${b}, veio ${a}`);
 
 const CSV = [
   "Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha",
@@ -99,15 +104,87 @@ test("prejuízo: IR zera, sem crédito negativo", () => {
   assert.equal(r.taxes, 0);
 });
 
-test("preço vigente: último ≤ data, recusado se defasado demais", () => {
-  const precos = [
-    { date: "2026-10-02", pu: 499.06 },
-    { date: "2026-10-15", pu: 531.28 },
-  ];
-  assert.equal(precoVigente(precos, "2026-10-16").pu, 531.28);
-  assert.equal(precoVigente(precos, "2026-10-05").pu, 499.06); // fim de semana: carrega sexta
-  assert.equal(precoVigente(precos, "2026-10-10"), null); // 8 dias sem preço
-  assert.equal(precoVigente(precos, "2026-10-01"), null); // antes do primeiro
+const PRE = { tipo: "Tesouro Prefixado", vencimento: "2032-01-01" };
+const OFICIAL_PRE = [
+  { date: "2026-10-02", pu: 499.06, taxa: 14.27 },
+  { date: "2026-10-15", pu: 531.28, taxa: 12.99 },
+];
+// taxa indicativa ANBIMA da LTN 01/01/2032 (arquivos ms261016…ms261023)
+const ANBIMA_LTN = [
+  { date: "2026-10-16", taxa: 13.0248, pu: 530.697398 },
+  { date: "2026-10-20", taxa: 12.8874, pu: 534.562392 },
+  { date: "2026-10-23", taxa: 12.8817, pu: 535.473735 },
+];
+
+test("preço vigente: oficial do próprio dia é usado como está", () => {
+  assert.deepEqual(precoVigente(OFICIAL_PRE, "2026-10-15", PRE), OFICIAL_PRE[1]);
+  assert.equal(precoVigente(OFICIAL_PRE, "2026-10-01", PRE), null); // antes do primeiro
+});
+
+test("sem oficial do dia nem ANBIMA: carrego à taxa da âncora", () => {
+  const p = precoVigente(OFICIAL_PRE, "2026-10-16", PRE);
+  assert.equal(p.estimado, true);
+  assert.equal(p.base, "2026-10-15");
+  assert.equal(p.taxaDate, null);
+  // 1 dia a 12,99% a.a.
+  close(p.pu, 531.28 * Math.pow(1.1299, 1 / 365.25), 1e-4);
+});
+
+test("estimado pela ANBIMA: taxa caiu, preço sobe — e fica perto do PU da ANBIMA", () => {
+  const p = precoVigente(OFICIAL_PRE, "2026-10-25", { ...PRE, anbima: ANBIMA_LTN });
+  assert.equal(p.taxaDate, "2026-10-23");
+  assert.ok(p.pu > 531.28);
+  // r1 = 12,99 − 0,1431 ≈ 12,85% ⇒ ~536; a ANBIMA marcava 535,47 a 12,88% em 23/10
+  assert.ok(Math.abs(p.pu - 535.47) / 535.47 < 0.005, `PU ${p.pu}`);
+});
+
+test("âncora sem taxa ANBIMA do dia: interpola os vizinhos", () => {
+  const anbima = [{ date: "2026-10-14", taxa: 12.7806 }, ...ANBIMA_LTN];
+  const p = precoVigente(OFICIAL_PRE, "2026-10-25", { ...PRE, anbima });
+  // âncora ANBIMA = (12,7806 + 13,0248)/2 = 12,9027 ⇒ Δ até 23/10 = −0,021: sobe pouco
+  const n0 = (Date.parse("2032-01-01") - Date.parse("2026-10-15")) / 86400000 / 365.25;
+  const n1 = (Date.parse("2032-01-01") - Date.parse("2026-10-25")) / 86400000 / 365.25;
+  const r1 = 0.1299 + (12.8817 - 12.9027) / 100;
+  close(p.pu, (531.28 * Math.pow(1.1299, n0)) / Math.pow(1 + r1, n1), 1e-5);
+});
+
+test("IPCA+: VNA anda com o IPCA mensal no período", () => {
+  const ipca = { tipo: "Tesouro IPCA+", vencimento: "2032-08-15" };
+  const of = [{ date: "2026-10-15", pu: 3233.78, taxa: 6.92 }];
+  const sem = precoVigente(of, "2026-11-14", ipca);
+  const com = precoVigente(of, "2026-11-14", { ...ipca, ipcaMensal: 0.5 });
+  close(com.pu / sem.pu, Math.pow(1.005, 30 / 30.4375), 1e-9);
+});
+
+test("âncora velha demais: sem estimativa (fica a Pluggy)", () => {
+  assert.equal(precoVigente(OFICIAL_PRE, "2026-12-15", PRE), null);
+});
+
+test("parse do arquivo da ANBIMA: datas, taxa indicativa e PU", () => {
+  const txt = [
+    "ANBIMA - Associa\u00e7\u00e3o Brasileira",
+    "",
+    "Titulo@Data Referencia@Codigo SELIC@Data Base/Emissao@Data Vencimento@Tx. Compra@Tx. Venda@Tx. Indicativas@PU@Desvio padrao",
+    "LTN@20261023@100000@20250110@20320101@12,8869@12,8754@12,8817@535,473735@0,00094",
+    "NTN-B@20261023@760199@20000715@20320815@6,7349@6,7068@6,72@4674,360248@0",
+  ].join("\r\n");
+  assert.deepEqual(parseAnbimaMs(txt), [
+    { titulo: "LTN", vencimento: "2032-01-01", date: "2026-10-23", taxa: 12.8817, pu: 535.473735 },
+    { titulo: "NTN-B", vencimento: "2032-08-15", date: "2026-10-23", taxa: 6.72, pu: 4674.360248 },
+  ]);
+  assert.equal(anbimaUrl("2026-10-23"), "https://www.anbima.com.br/informacoes/merc-sec/arqs/ms261023.txt");
+});
+
+test("ativo estimado sai marcado e guarda a âncora", () => {
+  const p = precoVigente(OFICIAL_PRE, "2026-10-25", { ...PRE, anbima: ANBIMA_LTN });
+  const r = repricedAsset(PREFIXADO, p, "2026-10-25");
+  assert.equal(r.priceSource, "estimado");
+  assert.equal(r.priceBase, "2026-10-15");
+  assert.equal(r.priceRateDate, "2026-10-23");
+  // voltar a um preço oficial limpa os campos da estimativa
+  const o = repricedAsset(r, OFICIAL_PRE[1], "2026-10-15");
+  assert.equal(o.priceSource, "tesouro");
+  assert.equal(o.priceBase, undefined);
 });
 
 test("payload: só Tesouro ACTIVE com preço é tocado", () => {
@@ -115,7 +192,7 @@ test("payload: só Tesouro ACTIVE com preço é tocado", () => {
   const lookup = (tipo, venc) => rows.filter((r) => r.tipo === tipo && r.vencimento === venc).sort((a, b) => (a.date < b.date ? -1 : 1));
   const cdb = { id: "x", subtype: "CDB", status: "ACTIVE", amount: 100 };
   const resgatado = { ...PREFIXADO, id: "y", status: "TOTAL_WITHDRAWAL" };
-  const out = repriceTreasuries([PREFIXADO, cdb, resgatado], "2026-10-16", lookup);
+  const out = repriceTreasuries([PREFIXADO, cdb, resgatado], "2026-10-15", lookup);
   assert.equal(out[0].amount, 81758.68);
   assert.equal(out[1], cdb);
   assert.equal(out[2], resgatado);

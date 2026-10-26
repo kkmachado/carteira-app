@@ -20,7 +20,7 @@ import {
   grossUpFactorWeighted,
 } from "./lib/performance.js";
 import { buildGastos } from "./lib/gastos.js";
-import { TESOURO_CSV_URL, parseTesouroCsv, repriceTreasuries } from "./lib/tesouro.js";
+import { TESOURO_CSV_URL, parseTesouroCsv, repriceTreasuries, anbimaUrl, parseAnbimaMs } from "./lib/tesouro.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_ITEM_ID, PORT = 3000, DB_PATH } = process.env;
@@ -137,6 +137,15 @@ db.exec(`
     taxa REAL,                       -- taxa de venda (% a.a.)
     PRIMARY KEY (tipo, vencimento, date)
   );
+  -- Taxa indicativa diária da ANBIMA: move o PU quando o CSV do Tesouro para.
+  CREATE TABLE IF NOT EXISTS anbima_taxas (
+    titulo TEXT NOT NULL,            -- LTN, NTN-F, NTN-B
+    vencimento TEXT NOT NULL,        -- YYYY-MM-DD
+    date TEXT NOT NULL,              -- data de referência
+    taxa REAL NOT NULL,              -- taxa indicativa (% a.a.)
+    pu REAL,
+    PRIMARY KEY (titulo, vencimento, date)
+  );
   CREATE TABLE IF NOT EXISTS tesouro_sync (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     fetched_at TEXT,
@@ -243,7 +252,7 @@ function saveSnapshot(investments, lastUpdatedAt) {
     return null;
   }
   const date = snapshotDateFor(lastUpdatedAt);
-  const payload = [...repriceTreasuries(investments, date, precosTitulo), ...manualInvestments(date)];
+  const payload = [...repriceDia(investments, date), ...manualInvestments(date)];
   const totals = totalsOf(payload);
   writeSnapshot(date, payload, totals);
 
@@ -404,15 +413,38 @@ function rebuildManualInSnapshots(fromISO) {
    `value` não), e a carteira ficou ~R$ 8,5 mil abaixo do app do Itaú. A fonte
    passa a ser o CSV público do Tesouro Transparente: quantidade × PU base do dia
    (ver lib/tesouro.js). O CSV sai com 1 dia útil de atraso, então o snapshot do dia
-   usa o último PU publicado e é reescrito quando o do próprio dia chega. Sem preço
-   oficial recente, fica o valor da Pluggy — os números originais dela ficam no
-   payload, em `pluggy`. */
-const TESOURO_TTL_MS = 6 * 60 * 60 * 1000;
+   é estimado a partir do último PU publicado e reescrito quando o do próprio dia
+   chega.
+
+   O CSV também pode sumir: a partir de 16/10/2026 o site passou a responder 429
+   para a rede de casa, e voltar ao valor da Pluggy (congelado) derrubou o
+   patrimônio em R$ 8 mil. Por isso a taxa indicativa diária da ANBIMA é guardada
+   em `anbima_taxas` e move o último PU oficial enquanto o CSV não volta. Os
+   números originais da Pluggy ficam no payload, em `pluggy`. */
+const TESOURO_TTL_MS = 20 * 60 * 60 * 1000; // o CSV muda 1x/dia; não insistir num site que limita
+const ANBIMA_JANELA_DIAS = 12; // o arquivo diário só fica no ar ~7 dias úteis
 const precosStmt = db.prepare(
-  "SELECT date, pu FROM tesouro_precos WHERE tipo = ? AND vencimento = ? ORDER BY date ASC"
+  "SELECT date, pu, taxa FROM tesouro_precos WHERE tipo = ? AND vencimento = ? ORDER BY date ASC"
+);
+const anbimaStmt = db.prepare(
+  "SELECT date, taxa, pu FROM anbima_taxas WHERE titulo = ? AND vencimento = ? ORDER BY date ASC"
 );
 const precosTitulo = (tipo, vencimento) => precosStmt.all(tipo, vencimento);
 
+// o VNA do IPCA+ anda com o IPCA: usa o último mensal publicado no SGS (série 433)
+function precoOpts() {
+  const ipca = db.prepare("SELECT value FROM benchmarks WHERE series = 'ipca' ORDER BY date DESC LIMIT 1").get();
+  return {
+    anbimaLookup: (titulo, vencimento) => anbimaStmt.all(titulo, vencimento),
+    ipcaMensal: ipca ? ipca.value : undefined,
+  };
+}
+const repriceDia = (payload, dateISO) => repriceTreasuries(payload, dateISO, precosTitulo, precoOpts());
+
+const isoMinusDays = (iso, d) => new Date(Date.parse(`${iso}T12:00:00Z`) - d * 86400000).toISOString().slice(0, 10);
+
+/* Baixa o CSV do Tesouro e grava o que é novo ou foi revisto. Devolve a menor data
+   que mudou (os snapshots dali em diante precisam ser reprecificados). */
 async function updateTesouro({ force = false } = {}) {
   const last = db.prepare("SELECT fetched_at FROM tesouro_sync WHERE id = 1").get()?.fetched_at;
   if (!force && last && Date.now() - Date.parse(last) < TESOURO_TTL_MS) return { skipped: true };
@@ -420,12 +452,10 @@ async function updateTesouro({ force = false } = {}) {
     const res = await fetch(TESOURO_CSV_URL, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!res.ok) throw new Error(`Tesouro Transparente HTTP ${res.status}`);
     // o arquivo tem o histórico desde 2002: guarda só a partir de pouco antes do 1º snapshot
-    const first = firstSnapshotDate();
-    const desde = new Date(Date.parse(`${first || todaySP()}T12:00:00Z`) - 15 * 86400000).toISOString().slice(0, 10);
+    const desde = isoMinusDays(firstSnapshotDate() || todaySP(), 15);
     const rows = parseTesouroCsv(await res.text(), desde);
     if (!rows.length) throw new Error("Tesouro Transparente: CSV sem preços no período");
 
-    // menor data com preço novo ou revisto: os snapshots dali em diante são reprecificados
     const atual = db.prepare("SELECT pu FROM tesouro_precos WHERE tipo = ? AND vencimento = ? AND date = ?");
     const up = db.prepare(
       `INSERT INTO tesouro_precos (tipo, vencimento, date, pu, taxa) VALUES (?, ?, ?, ?, ?)
@@ -444,8 +474,7 @@ async function updateTesouro({ force = false } = {}) {
          ON CONFLICT(id) DO UPDATE SET fetched_at=excluded.fetched_at, last_error=NULL`
       ).run(new Date().toISOString());
     })();
-    const snapshots = desdeMudanca ? repriceTesouroInSnapshots(desdeMudanca) : 0;
-    return { ok: true, desde: desdeMudanca, snapshots };
+    return { ok: true, desde: desdeMudanca };
   } catch (err) {
     db.prepare(
       `INSERT INTO tesouro_sync (id, fetched_at, last_error) VALUES (1, NULL, ?)
@@ -455,15 +484,65 @@ async function updateTesouro({ force = false } = {}) {
   }
 }
 
-/* Reaplica o preço oficial nos snapshots a partir de `fromISO`. Idempotente: parte
-   sempre dos números originais da Pluggy guardados no payload. */
+/* Arquivos diários da ANBIMA dos últimos dias úteis que ainda não estão no banco.
+   Dia sem arquivo (feriado, ainda não publicado, já retirado) responde 404 e é
+   pulado; falha de rede num dia não impede os outros. */
+async function updateAnbima() {
+  const hoje = todaySP();
+  const inicio = [isoMinusDays(hoje, ANBIMA_JANELA_DIAS), isoMinusDays(firstSnapshotDate() || hoje, 15)].sort()[1];
+  const tem = db.prepare("SELECT 1 FROM anbima_taxas WHERE date = ? LIMIT 1");
+  const up = db.prepare(
+    `INSERT INTO anbima_taxas (titulo, vencimento, date, taxa, pu) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(titulo, vencimento, date) DO UPDATE SET taxa=excluded.taxa, pu=excluded.pu`
+  );
+  let desdeMudanca = null;
+  const erros = [];
+  for (let d = inicio; d <= hoje; d = isoMinusDays(d, -1)) {
+    const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
+    if (dow === 0 || dow === 6 || tem.get(d)) continue;
+    try {
+      const res = await fetch(anbimaUrl(d), { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (res.status === 404) continue;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = new TextDecoder("latin1").decode(await res.arrayBuffer());
+      const rows = parseAnbimaMs(text).filter((r) => ["LTN", "NTN-F", "NTN-B"].includes(r.titulo));
+      if (!rows.length) continue;
+      db.transaction(() => {
+        for (const r of rows) up.run(r.titulo, r.vencimento, r.date, r.taxa, r.pu);
+      })();
+      if (!desdeMudanca || d < desdeMudanca) desdeMudanca = d;
+    } catch (err) {
+      erros.push(`${d}: ${err.message || err}`);
+    }
+  }
+  return { desde: desdeMudanca, erros };
+}
+
+/* Atualiza as duas fontes e reprecifica os snapshots a partir da menor data que
+   mudou em qualquer uma delas. */
+async function atualizarPrecosTesouro({ force = false } = {}) {
+  const t = await updateTesouro({ force });
+  const a = await updateAnbima();
+  const desde = [t.desde, a.desde].filter(Boolean).sort()[0] || null;
+  const snapshots = desde ? repriceTesouroInSnapshots(desde) : 0;
+  return { tesouro: t, anbima: a, desde, snapshots };
+}
+
+function logPrecosTesouro(prefixo, r) {
+  console.log(`🏛️  ${prefixo}Tesouro: preços desde ${r.desde || "—"}, ${r.snapshots} snapshot(s) reprecificado(s)`);
+  if (r.tesouro.error) console.error(`${prefixo}Falha ao baixar o CSV do Tesouro (segue pela ANBIMA):`, r.tesouro.error);
+  for (const e of r.anbima.erros) console.error(`${prefixo}Falha ao baixar taxa ANBIMA`, e);
+}
+
+/* Reaplica o preço oficial/estimado nos snapshots a partir de `fromISO`. Idempotente:
+   parte sempre dos números originais da Pluggy guardados no payload. */
 function repriceTesouroInSnapshots(fromISO) {
   const rows = db
     .prepare("SELECT date, payload FROM snapshots WHERE date >= ? ORDER BY date ASC")
     .all(fromISO || "0000-00-00");
   db.transaction(() => {
     for (const row of rows) {
-      const payload = repriceTreasuries(JSON.parse(row.payload), row.date, precosTitulo);
+      const payload = repriceDia(JSON.parse(row.payload), row.date);
       writeSnapshot(row.date, payload, totalsOf(payload));
     }
   })();
@@ -1149,9 +1228,7 @@ app.get("/api/health", (_req, res) => {
    a Pluggy está fora ao meio-dia; o upsert por data mantém um snapshot por dia. */
 async function coletaDiaria(hora) {
   // antes do snapshot: o dia já nasce com o preço oficial mais recente
-  const t = await updateTesouro();
-  if (t.ok) console.log(`🏛️  [${hora}] Tesouro: preços desde ${t.desde || "—"}, ${t.snapshots} snapshot(s) reprecificado(s)`);
-  else if (t.error) console.error(`[${hora}] Falha ao atualizar preços do Tesouro:`, t.error);
+  logPrecosTesouro(`[${hora}] `, await atualizarPrecosTesouro());
   try {
     // o item vem junto só pela data da coleta: um dia em que a Pluggy não
     // sincronizou reescreve o snapshot daquele dia em vez de criar um ponto novo
@@ -1174,12 +1251,12 @@ async function coletaDiaria(hora) {
 }
 
 if (!DEMO) {
-  /* No boot: busca os preços e reprecifica o histórico inteiro (primeira vez) ou
-     o que mudou. Não segura o listen — o CSV tem ~14 MB. */
-  updateTesouro({ force: true }).then((t) => {
-    if (t.ok) console.log(`🏛️  Tesouro: preços desde ${t.desde || "—"}, ${t.snapshots} snapshot(s) reprecificado(s)`);
-    else console.error("Falha ao atualizar preços do Tesouro:", t.error);
-  });
+  /* No boot: busca os preços e reprecifica o que mudou (na primeira vez, o histórico
+     inteiro). Sem force: o CSV tem ~14 MB e o site limita requisições da mesma rede
+     — reiniciar o container não pode virar mais um download. Não segura o listen. */
+  atualizarPrecosTesouro()
+    .then((r) => logPrecosTesouro("", r))
+    .catch((err) => console.error("Falha ao atualizar preços do Tesouro:", err));
   cron.schedule("0 12 * * *", () => coletaDiaria("12:00"), { timezone: "America/Sao_Paulo" });
   cron.schedule("0 19 * * *", () => coletaDiaria("19:00"), { timezone: "America/Sao_Paulo" });
 }
